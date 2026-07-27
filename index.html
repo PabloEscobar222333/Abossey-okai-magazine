@@ -1,0 +1,2075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ABBOSSEY OKAI MAGAZINE - Abossey Okai Auto Parts & Accessories E-Commerce Marketplace Platform. Find certified dealers, vehicle parts, and premium accessories in Ghana.">
+  <title>ABBOSSEY OKAI MAGAZINE - Auto Parts & Accessories Marketplace</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  
+  <!-- Fonts & Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="/css/styles.css">
+  
+  <!-- Manifest for PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F4C81">
+  <link rel="apple-touch-icon" href="/assets/images/icon-192.png">
+</head>
+<body>
+
+  <div class="app-container" id="app-wrapper">
+    
+    <!-- Global Header -->
+    <header id="main-header">
+      <nav class="navbar" id="global-navbar">
+        <a href="#" class="nav-brand" id="brand-logo" onclick="app.showStorefront(); return false;">
+          <i class="fa-solid fa-gears"></i> ABBOSSEY OKAI <span>MAGAZINE</span>
+        </a>
+        
+        <ul class="nav-links" id="main-nav-links">
+          <li><a href="#" class="active" id="nav-parts" onclick="app.filterByMainType('parts'); return false;">Spare Parts</a></li>
+          <li><a href="#" id="nav-accessories" onclick="app.filterByMainType('accessories'); return false;">Car Accessories</a></li>
+          <li><a href="#why-us-section" id="nav-about">About Us</a></li>
+          <li><a href="#faq-section" id="nav-faq">FAQs</a></li>
+        </ul>
+        
+        <div class="nav-actions" id="main-nav-actions">
+          <div class="region-selector" id="region-toggle">
+            <i class="fa-solid fa-location-dot"></i> <span>Accra, GH</span>
+          </div>
+          <button class="nav-search-btn" onclick="app.toggleSearchModal(true)" aria-label="Search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+        </div>
+        
+        <button class="nav-search-btn mobile-search-toggle" onclick="app.toggleSearchModal(true)" aria-label="Search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+        <button class="btn btn-primary" id="merchant-portal-btn" onclick="app.toggleMerchantPortal()">Login</button>
+      </nav>
+    </header>
+
+    <!-- Main Content wrapper -->
+    <main id="app-main-content">
+      
+      <!-- STOREFRONT VIEW -->
+      <section class="storefront-view" id="storefront-view-panel">
+        
+        <!-- HERO SECTION — Filled with attached image -->
+        <div class="hero-section" id="home-hero">
+          <div class="hero-content-wrapper" style="padding-top: 1.25rem !important; padding-bottom: 1rem !important; align-items: flex-start !important;">
+            <div class="hero-text-column" style="gap: 0px !important; margin: 0 auto;">
+              <h1 style="color: #000000 !important; text-shadow: none !important; margin: 0 !important; font-size: clamp(1.6rem, 3.2vw, 2.8rem) !important; font-weight: 800 !important;">Find genuine spare parts.</h1>
+              <p style="color: #222222 !important; margin: 0 !important; margin-top: -0.35rem !important; font-size: clamp(1rem, 1.8vw, 1.2rem) !important; font-weight: 500 !important;">Search over 50,000 parts.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- POPULAR PARTS -->
+        <div class="shop-by-category" id="shop-by-category">
+          <div class="shop-cat-header">
+            <h2 class="shop-cat-title">Popular Parts</h2>
+          </div>
+          <div class="shop-cat-scroll">
+            <div class="shop-cat-track">
+              <div class="shop-cat-group">
+                <div class="shop-cat-item" onclick="app.filterByCategory('Tires & Wheels')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/tires.png" alt="Tires & Wheels">
+                  </div>
+                  <span class="shop-cat-label">Tires & Wheels</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Batteries')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/batteries.png" alt="Batteries">
+                  </div>
+                  <span class="shop-cat-label">Batteries</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Engine Oil')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/engine-oil.png" alt="Engine Oil">
+                  </div>
+                  <span class="shop-cat-label">Engine Oil</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Brake System')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/brakes.png" alt="Brake System">
+                  </div>
+                  <span class="shop-cat-label">Brake System</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Lighting')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/lighting.png" alt="Lighting">
+                  </div>
+                  <span class="shop-cat-label">Lighting</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Suspension')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/suspension.png" alt="Suspension">
+                  </div>
+                  <span class="shop-cat-label">Suspension</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Filters')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/filters.png" alt="Filters">
+                  </div>
+                  <span class="shop-cat-label">Filters</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Radiator')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/radiator.png" alt="Radiator">
+                  </div>
+                  <span class="shop-cat-label">Radiator</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Shock Absorbers')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/shock-absorbers.png" alt="Shock Absorbers">
+                  </div>
+                  <span class="shop-cat-label">Shock Absorbers</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Ball Joints')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/ball-joints.png" alt="Ball Joints">
+                  </div>
+                  <span class="shop-cat-label">Ball Joints</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Steering Wheel')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/steering-wheel.png" alt="Steering Wheel">
+                  </div>
+                  <span class="shop-cat-label">Steering Wheel</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Wipers')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/wipers.png" alt="Wipers">
+                  </div>
+                  <span class="shop-cat-label">Wipers</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Condenser')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/condenser.png" alt="Condenser">
+                  </div>
+                  <span class="shop-cat-label">Condenser</span>
+                </div>
+              </div>
+              <div class="shop-cat-group" aria-hidden="true">
+                <div class="shop-cat-item" onclick="app.filterByCategory('Tires & Wheels')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/tires.png" alt="Tires & Wheels">
+                  </div>
+                  <span class="shop-cat-label">Tires & Wheels</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Batteries')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/batteries.png" alt="Batteries">
+                  </div>
+                  <span class="shop-cat-label">Batteries</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Engine Oil')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/engine-oil.png" alt="Engine Oil">
+                  </div>
+                  <span class="shop-cat-label">Engine Oil</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Brake System')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/brakes.png" alt="Brake System">
+                  </div>
+                  <span class="shop-cat-label">Brake System</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Lighting')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/lighting.png" alt="Lighting">
+                  </div>
+                  <span class="shop-cat-label">Lighting</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Suspension')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/suspension.png" alt="Suspension">
+                  </div>
+                  <span class="shop-cat-label">Suspension</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Filters')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/filters.png" alt="Filters">
+                  </div>
+                  <span class="shop-cat-label">Filters</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Radiator')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/radiator.png" alt="Radiator">
+                  </div>
+                  <span class="shop-cat-label">Radiator</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Shock Absorbers')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/shock-absorbers.png" alt="Shock Absorbers">
+                  </div>
+                  <span class="shop-cat-label">Shock Absorbers</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Ball Joints')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/ball-joints.png" alt="Ball Joints">
+                  </div>
+                  <span class="shop-cat-label">Ball Joints</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Steering Wheel')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/steering-wheel.png" alt="Steering Wheel">
+                  </div>
+                  <span class="shop-cat-label">Steering Wheel</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Wipers')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/wipers.png" alt="Wipers">
+                  </div>
+                  <span class="shop-cat-label">Wipers</span>
+                </div>
+                <div class="shop-cat-item" onclick="app.filterByCategory('Condenser')">
+                  <div class="shop-cat-circle">
+                    <img src="/assets/images/categories/condenser.png" alt="Condenser">
+                  </div>
+                  <span class="shop-cat-label">Condenser</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- SHOP BY BRAND -->
+        <div class="shop-by-brand" id="shop-by-brand">
+          <div class="shop-brand-header">
+            <h2 class="shop-brand-title">Shop by Brand</h2>
+            <a href="#" class="shop-brand-view-all" onclick="app.switchAppView('all-brands'); return false;">View all <i class="fa-solid fa-chevron-right"></i></a>
+          </div>
+          <div class="shop-brand-scroll">
+            <div class="shop-brand-track">
+              <div class="shop-brand-group">
+                <div class="shop-brand-item" onclick="app.filterByBrand('Toyota')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/toyota.png" alt="Toyota" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Toyota</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Nissan')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/nissan.png" alt="Nissan" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Nissan</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Honda')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/honda.png" alt="Honda" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Honda</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Suzuki')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/suzuki.png" alt="Suzuki" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Suzuki</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Mitsubishi')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/mitsubishi.png" alt="Mitsubishi" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Mitsubishi</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Mazda')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/mazda.png" alt="Mazda" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Mazda</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Hyundai')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/hyundai.png" alt="Hyundai" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Hyundai</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Kia')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/kia.png" alt="Kia" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Kia</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Volkswagen')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/volkswagen.png" alt="Volkswagen" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Volkswagen</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Mercedes-Benz')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/mercedes-benz.png" alt="Mercedes-Benz" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Mercedes-Benz</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('BMW')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/bmw.png" alt="BMW" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">BMW</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Audi')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/audi.png" alt="Audi" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Audi</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Ford')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/ford.png" alt="Ford" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Ford</span>
+                </div>
+              </div>
+              <div class="shop-brand-group" aria-hidden="true">
+                <div class="shop-brand-item" onclick="app.filterByBrand('Toyota')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/toyota.png" alt="Toyota" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Toyota</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Nissan')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/nissan.png" alt="Nissan" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Nissan</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Honda')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/honda.png" alt="Honda" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Honda</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Suzuki')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/suzuki.png" alt="Suzuki" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Suzuki</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Mitsubishi')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/mitsubishi.png" alt="Mitsubishi" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Mitsubishi</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Mazda')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/mazda.png" alt="Mazda" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Mazda</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Hyundai')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/hyundai.png" alt="Hyundai" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Hyundai</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Kia')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/kia.png" alt="Kia" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Kia</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Volkswagen')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/volkswagen.png" alt="Volkswagen" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Volkswagen</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Mercedes-Benz')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/mercedes-benz.png" alt="Mercedes-Benz" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Mercedes-Benz</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('BMW')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/bmw.png" alt="BMW" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">BMW</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Audi')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/audi.png" alt="Audi" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Audi</span>
+                </div>
+                <div class="shop-brand-item" onclick="app.filterByBrand('Ford')">
+                  <div class="shop-brand-logo-container">
+                    <img src="/assets/images/brands/ford.png" alt="Ford" class="brand-logo-img">
+                  </div>
+                  <span class="shop-brand-label">Ford</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+
+        <!-- SEARCH MODAL OVERLAY -->
+        <div class="search-modal-overlay" id="search-modal" onclick="if(event.target === this) app.toggleSearchModal(false)">
+          <div class="search-modal-card" id="search-discovery-widget">
+            <button class="search-modal-close-btn" onclick="app.toggleSearchModal(false)" aria-label="Close search">&times;</button>
+
+            <!-- Tab toggle -->
+            <div class="widget-mode-tabs" id="discovery-mode-tabs">
+              <button class="widget-mode-tab active" id="tab-mode-parts" onclick="app.setSearchMode('parts')">
+                <i class="fa-solid fa-car-side"></i> Spare Parts
+              </button>
+              <button class="widget-mode-tab" id="tab-mode-accessories" onclick="app.setSearchMode('accessories')">
+                <i class="fa-solid fa-puzzle-piece"></i> Car Accessories
+              </button>
+            </div>
+
+            <!-- Global Search with Autocomplete -->
+            <div class="global-search-container" id="global-search-wrapper">
+              <div class="search-input-wrapper">
+                <i class="fa-solid fa-magnifying-glass search-icon-left"></i>
+                <input type="text" class="global-search-input" id="main-search-input" placeholder="Search by part name, brand, model — e.g. 'Brake Pads Toyota'..." autocomplete="off">
+              </div>
+              <div class="autocomplete-dropdown" id="search-autocomplete-dropdown"></div>
+            </div>
+
+            <!-- MODE A: Spare Parts vehicle selectors -->
+            <div class="parts-filter-grid" id="mode-parts-filters">
+              <div class="filter-field">
+                <label for="select-vehicle-make">Vehicle Brand</label>
+                <select id="select-vehicle-make" onchange="app.onMakeChange()">
+                  <option value="">All Brands</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="select-vehicle-model">Model</label>
+                <select id="select-vehicle-model" disabled onchange="app.onModelChange()">
+                  <option value="">All Models</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="select-vehicle-year">Year</label>
+                <select id="select-vehicle-year" disabled>
+                  <option value="">All Years</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="select-parts-category">Part Category</label>
+                <select id="select-parts-category">
+                  <option value="">All Categories</option>
+                </select>
+              </div>
+              <button class="btn btn-primary search-apply-btn" id="parts-search-apply" onclick="app.applyVehicleSearch()">
+                <i class="fa-solid fa-magnifying-glass"></i> Find Parts
+              </button>
+            </div>
+
+            <!-- MODE B: Car Accessories category grid -->
+            <div class="accessories-category-grid" id="mode-accessories-filters" style="display: none;">
+              <div class="accessory-cat-card" data-category="Audio" onclick="app.selectAccessoryCategory('Audio', this)">
+                <span class="accessory-cat-icon">🔊</span>
+                <span class="accessory-cat-name">Audio &amp; Media</span>
+              </div>
+              <div class="accessory-cat-card" data-category="Interior" onclick="app.selectAccessoryCategory('Interior', this)">
+                <span class="accessory-cat-icon">💺</span>
+                <span class="accessory-cat-name">Interior Comfort</span>
+              </div>
+              <div class="accessory-cat-card" data-category="Exterior" onclick="app.selectAccessoryCategory('Exterior', this)">
+                <span class="accessory-cat-icon">🚗</span>
+                <span class="accessory-cat-name">Exterior Styling</span>
+              </div>
+              <div class="accessory-cat-card" data-category="Safety" onclick="app.selectAccessoryCategory('Safety', this)">
+                <span class="accessory-cat-icon">🛡️</span>
+                <span class="accessory-cat-name">Safety &amp; Utility</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+
+        <!-- Marketplace Discovery Section -->
+        <div class="marketplace-container" id="marketplace-grid-section">
+          
+          <!-- Left-hand advanced filters sidebar -->
+          <aside class="filters-sidebar" id="advanced-filters-sidebar">
+            <div class="sidebar-title-row">
+              <h3>Filters</h3>
+              <button class="clear-filters-btn" id="filters-clear-btn" onclick="app.resetAllFilters()">Clear All</button>
+            </div>
+            
+            <div class="filter-group">
+              <h4 class="filter-group-title">Condition</h4>
+              <div class="filter-options">
+                <label class="filter-checkbox-label">
+                  <input type="checkbox" class="condition-filter-checkbox" value="New" onchange="app.onFilterChange()"> New
+                </label>
+                <label class="filter-checkbox-label">
+                  <input type="checkbox" class="condition-filter-checkbox" value="Used" onchange="app.onFilterChange()"> Used
+                </label>
+                <label class="filter-checkbox-label">
+                  <input type="checkbox" class="condition-filter-checkbox" value="Refurbished" onchange="app.onFilterChange()"> Refurbished
+                </label>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <h4 class="filter-group-title">Price Range (GHS)</h4>
+              <div class="price-range-slider">
+                <div class="price-inputs">
+                  <input type="number" id="price-min" placeholder="Min" min="0" oninput="app.onFilterChange()">
+                  <input type="number" id="price-max" placeholder="Max" min="0" oninput="app.onFilterChange()">
+                </div>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <h4 class="filter-group-title">Merchant Type</h4>
+              <div class="filter-options">
+                <label class="filter-checkbox-label">
+                  <input type="checkbox" class="merchant-type-filter" value="Verified" onchange="app.onFilterChange()"> Verified Dealers
+                </label>
+                <label class="filter-checkbox-label">
+                  <input type="checkbox" class="merchant-type-filter" value="Independent" onchange="app.onFilterChange()"> Independent Sellers
+                </label>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <h4 class="filter-group-title">Popular Brands</h4>
+              <div class="filter-options" id="brand-filter-list">
+                <!-- JS populated brands checkboxes -->
+              </div>
+            </div>
+            
+            <!-- Close button for Mobile drawer -->
+            <button class="btn btn-secondary" style="margin-top: 1rem; width: 100%; display: none;" id="sidebar-close-mobile" onclick="app.toggleMobileFilters(false)">
+              Apply Filters
+            </button>
+          </aside>
+
+          <!-- Right-hand product catalog grid -->
+          <section class="catalog-section" id="marketplace-catalog">
+            
+            <div class="catalog-header">
+              <span class="catalog-stats" id="catalog-results-count">Showing 0 products</span>
+              
+              <div class="catalog-controls">
+                <button class="mobile-filter-trigger" id="mobile-filter-drawer-btn" onclick="app.toggleMobileFilters(true)">
+                  <i class="fa-solid fa-sliders"></i> Filters
+                </button>
+                <select id="catalog-sort-select" onchange="app.onSortChange()">
+                  <option value="popular">Most Popular</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
+                  <option value="newest">Newest Listings</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Grid Items Container -->
+            <div class="product-grid" id="catalog-products-container">
+              <!-- Dynamically Populated Cards -->
+            </div>
+
+          </section>
+
+        </div>
+
+        <!-- Value Propositions Grid -->
+        <section class="values-section" id="why-us-section">
+          <div class="values-wrapper">
+            <h2>Why Shop With Us</h2>
+            <div class="values-grid">
+              <div class="value-card" id="value-card-verification">
+                <div class="value-icon"><i class="fa-solid fa-circle-check"></i></div>
+                <h4>Free Verification</h4>
+                <p>We check local Abossey Okai stores to verify dealer listings and guarantee fitment assurance.</p>
+              </div>
+              <div class="value-card" id="value-card-pricing">
+                <div class="value-icon"><i class="fa-solid fa-scale-balanced"></i></div>
+                <h4>Transparent Pricing</h4>
+                <p>No hidden fees. View absolute prices in GHS and connect with merchants directly.</p>
+              </div>
+
+              <div class="value-card" id="value-card-support">
+                <div class="value-icon"><i class="fa-solid fa-headset"></i></div>
+                <h4>24/7 Local Support</h4>
+                <p>Our help center and regional coordinators are always on hand to assist with your order issues.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FAQ Accordion section -->
+        <section class="faq-section" id="faq-section">
+          <h2 class="faq-title">Frequently Asked Questions</h2>
+          <div class="faq-container" id="faq-accordions-wrapper">
+            
+            <div class="faq-item" id="faq-item-1">
+              <div class="faq-header" onclick="app.toggleFaq(1)">
+                <span class="faq-question">How do I verify if a part fits my car model?</span>
+                <span class="faq-toggle" id="faq-toggle-1"><i class="fa-solid fa-chevron-down"></i></span>
+              </div>
+              <div class="faq-content" id="faq-content-1">
+                You can use our vehicle lookup selector at the top hero section. Choose your vehicle's Brand, Model, and Year to instantly filter components that match your specific fitment specifications. We also display compatibility tags on each listing.
+              </div>
+            </div>
+
+            <div class="faq-item" id="faq-item-2">
+              <div class="faq-header" onclick="app.toggleFaq(2)">
+                <span class="faq-question">How does buying and negotiating via WhatsApp work?</span>
+                <span class="faq-toggle" id="faq-toggle-2"><i class="fa-solid fa-chevron-down"></i></span>
+              </div>
+              <div class="faq-content" id="faq-content-2">
+                Clicking the "Chat Merchant on WhatsApp" button on any listing opens a direct chat window with the verified Abossey Okai seller, pre-filling details about the exact item and price. You can complete the sale details and delivery options directly with them.
+              </div>
+            </div>
+
+            <div class="faq-item" id="faq-item-3">
+              <div class="faq-header" onclick="app.toggleFaq(3)">
+                <span class="faq-question">Are the products listed brand new or used?</span>
+                <span class="faq-toggle" id="faq-toggle-3"><i class="fa-solid fa-chevron-down"></i></span>
+              </div>
+              <div class="faq-content" id="faq-content-3">
+                Both! We offer filters for "New", "Used" (salvage/tokunbo), and "Refurbished" conditions to accommodate different budgetary needs. The condition badge is displayed on each card.
+              </div>
+            </div>
+
+            <div class="faq-item" id="faq-item-4">
+              <div class="faq-header" onclick="app.toggleFaq(4)">
+                <span class="faq-question">Can I locate physical stores in Abossey Okai?</span>
+                <span class="faq-toggle" id="faq-toggle-4"><i class="fa-solid fa-chevron-down"></i></span>
+              </div>
+              <div class="faq-content" id="faq-content-4">
+                Yes! Every listing from verified merchant stalls includes a "Locate Merchant Shop" button which opens coordinates directly inside Google Maps, helping you navigate to the dealer's stall in Abossey Okai, Accra.
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </section>
+
+      <!-- ALL BRANDS VIEW -->
+      <section class="all-brands-view" id="all-brands-view-panel" style="display: none;">
+        <div class="brands-container-box">
+          <div class="brands-navigation-bar">
+            <a href="#" class="btn-back-to-storefront" onclick="app.showStorefront(); return false;">
+              <i class="fa-solid fa-arrow-left"></i> Back to Marketplace
+            </a>
+          </div>
+          
+          <div class="brands-view-header">
+            <div class="brands-header-text">
+              <h1 class="brands-title"><i class="fa-solid fa-car"></i> Explore Brands</h1>
+              <p class="brands-subtitle">Choose from our list of 51 supported vehicle brands to filter products instantly</p>
+            </div>
+            
+            <div class="brands-search-wrapper">
+              <i class="fa-solid fa-magnifying-glass search-input-icon"></i>
+              <input type="text" id="brand-search-input" placeholder="Search brands..." onkeyup="app.filterBrandsList()">
+            </div>
+          </div>
+
+          <div class="brands-tabs-outer">
+            <div class="brands-tabs-wrapper" id="brands-tabs-wrapper">
+              <button class="brand-tab-btn active" onclick="app.switchBrandTab('all', this)">All Brands</button>
+              <button class="brand-tab-btn" onclick="app.switchBrandTab('asian', this)">Japanese & Asian</button>
+              <button class="brand-tab-btn" onclick="app.switchBrandTab('european', this)">European & Luxury</button>
+              <button class="brand-tab-btn" onclick="app.switchBrandTab('american', this)">American & Global</button>
+              <button class="brand-tab-btn" onclick="app.switchBrandTab('commercial', this)">Trucks & Commercial</button>
+            </div>
+            <div class="brands-tabs-arrow" id="brands-tabs-arrow" onclick="app.scrollTabsRight()">
+              <i class="fa-solid fa-chevron-right"></i>
+            </div>
+          </div>
+
+          <div class="brands-results-info" id="brands-count-text">
+            Showing all 51 brands
+          </div>
+
+          <div class="brands-grid-layout" id="all-brands-grid">
+            <!-- Dynamic brand cards will be rendered here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- BRAND SEARCH MODAL OVERLAY (top-level so it works from any view) -->
+      <div class="search-modal-overlay" id="brand-search-modal" onclick="if(event.target === this) app.toggleBrandSearchModal(false)">
+        <div class="search-modal-card" id="brand-search-card">
+          <button class="search-modal-close-btn" onclick="app.toggleBrandSearchModal(false)" aria-label="Close search">&times;</button>
+
+          <!-- Brand Header inside dialog: logo and name boldly written -->
+          <div class="brand-modal-header-section">
+            <div class="brand-modal-logo-wrapper">
+              <img id="brand-modal-logo" src="" alt="" class="brand-modal-logo-img">
+            </div>
+            <span id="brand-modal-name" class="brand-modal-title-name">Toyota</span>
+          </div>
+
+          <!-- Tab toggle -->
+          <div class="widget-mode-tabs" id="brand-mode-tabs">
+            <button class="widget-mode-tab active" id="brand-tab-mode-parts" onclick="app.setBrandSearchMode('parts')">
+              <i class="fa-solid fa-car-side"></i> Spare Parts
+            </button>
+            <button class="widget-mode-tab" id="brand-tab-mode-accessories" onclick="app.setBrandSearchMode('accessories')">
+              <i class="fa-solid fa-puzzle-piece"></i> Car Accessories
+            </button>
+          </div>
+
+          <!-- Section 1: Spare Parts -->
+          <div class="brand-modal-parts-section" id="brand-parts-section">
+            <!-- Selectors for Model and Year -->
+            <div class="brand-selectors-grid">
+              <div class="filter-field">
+                <label for="select-brand-model">Select Model <span class="required-asterisk">*</span></label>
+                <select id="select-brand-model" onchange="app.onBrandModelChange()">
+                  <option value="">Choose Model</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="select-brand-year">Select Year <span class="required-asterisk">*</span></label>
+                <select id="select-brand-year" disabled>
+                  <option value="">Choose Year</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Part search input inside dialog -->
+            <div class="brand-search-input-wrapper">
+              <i class="fa-solid fa-magnifying-glass search-icon-left"></i>
+              <input type="text" class="global-search-input" id="brand-part-search-input" placeholder="What part are you looking for? e.g. Brake Pads..." autocomplete="off">
+            </div>
+
+            <button class="btn btn-primary search-apply-btn" id="brand-parts-search-apply" onclick="app.applyBrandPartsSearch()">
+              <i class="fa-solid fa-magnifying-glass"></i> Find Parts
+            </button>
+          </div>
+
+          <!-- Section 2: Accessories -->
+          <div class="brand-modal-accessories-section" id="brand-accessories-section" style="display: none;">
+            <div class="accessories-instruction">Select an accessory category:</div>
+            <div class="accessories-category-grid">
+              <div class="accessory-cat-card" data-category="Audio" onclick="app.applyBrandAccessorySearch('Audio', this)">
+                <span class="accessory-cat-icon">🔊</span>
+                <span class="accessory-cat-name">Audio &amp; Media</span>
+              </div>
+              <div class="accessory-cat-card" data-category="Interior" onclick="app.applyBrandAccessorySearch('Interior', this)">
+                <span class="accessory-cat-icon">💺</span>
+                <span class="accessory-cat-name">Interior Comfort</span>
+              </div>
+              <div class="accessory-cat-card" data-category="Exterior" onclick="app.applyBrandAccessorySearch('Exterior', this)">
+                <span class="accessory-cat-icon">🚗</span>
+                <span class="accessory-cat-name">Exterior Styling</span>
+              </div>
+              <div class="accessory-cat-card" data-category="Safety" onclick="app.applyBrandAccessorySearch('Safety', this)">
+                <span class="accessory-cat-icon">🛡️</span>
+                <span class="accessory-cat-name">Safety &amp; Utility</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- MERCHANT DASHBOARD VIEW -->
+      <section class="dashboard-view" id="merchant-dashboard-panel">
+        
+        <!-- Dashboard Sidebar -->
+        <aside class="dashboard-sidebar" id="merchant-sidebar">
+          
+          <div class="dashboard-profile-card">
+            <div class="dashboard-avatar-upload">
+              <div class="dashboard-profile-avatar" id="merchant-avatar-container">M</div>
+              <label class="avatar-edit-badge" for="profile-avatar-input" title="Upload Logo">
+                <i class="fa-solid fa-camera"></i>
+              </label>
+              <input type="file" id="profile-avatar-input" style="display: none;" accept="image/*" onchange="app.onAvatarChange(event)">
+            </div>
+            <h3 class="dashboard-shop-name" id="merchant-display-shop-name">My Auto Store</h3>
+            <span class="dashboard-shop-location" id="merchant-display-location"><i class="fa-solid fa-location-dot"></i> Stall C12, Abossey Okai</span>
+          </div>
+
+          <ul class="dashboard-menu">
+            <li class="dashboard-menu-item active" id="db-menu-inventory" onclick="app.switchDashboardTab('inventory')">
+              <i class="fa-solid fa-boxes-stacked"></i> Manage Inventory
+            </li>
+            <li class="dashboard-menu-item" id="db-menu-profile" onclick="app.switchDashboardTab('profile')">
+              <i class="fa-solid fa-id-card"></i> Shop Profile Settings
+            </li>
+            <li class="dashboard-menu-item" onclick="app.logoutMerchant()">
+              <i class="fa-solid fa-right-from-bracket"></i> Exit Dashboard
+            </li>
+          </ul>
+
+        </aside>
+
+        <!-- Dashboard Main Content Panel -->
+        <div class="dashboard-content-panel" id="merchant-dashboard-content">
+          
+          <!-- TAB 1: Inventory Management -->
+          <div class="dashboard-tab-panel" id="db-panel-inventory">
+            
+            <!-- Stats Metrics cards -->
+            <div class="dashboard-metrics-grid" id="merchant-metrics-banner">
+              <div class="metric-card" id="metric-orders">
+                <div class="metric-info">
+                  <span class="metric-label">Total Visitors</span>
+                  <span class="metric-value" id="metric-total-leads">0</span>
+                </div>
+                <div class="metric-icon"><i class="fa-solid fa-users"></i></div>
+              </div>
+              <div class="metric-card metric-card-clickable" id="metric-active" onclick="app.openMostViewedModal()" title="Click to see all most viewed products">
+                <div class="metric-info">
+                  <span class="metric-label">Most Viewed Product <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem; margin-left:4px; opacity:0.6;"></i></span>
+                  <span class="metric-value" id="metric-total-live" style="font-size:1rem;">—</span>
+                </div>
+                <div class="metric-icon"><i class="fa-solid fa-eye"></i></div>
+              </div>
+            </div>
+
+            <div class="dashboard-panel-header" style="margin-top: 1.5rem;">
+              <h2 style="white-space: nowrap; font-size: 1.1rem; line-height: 1.2; margin: 0;">Inventory Listings</h2>
+              <button class="btn btn-accent btn-sm" id="add-listing-btn" onclick="app.openProductForm()">
+                <i class="fa-solid fa-plus"></i> Add New Product
+              </button>
+            </div>
+
+            <!-- Inventory List Table Card -->
+            <div class="inventory-card">
+              
+              
+              <div class="inventory-actions" style="justify-content: flex-end;">
+                <span class="catalog-stats" id="inventory-count">0 items total</span>
+              </div>
+
+              <div class="table-wrapper">
+                <table class="inventory-table" id="inventory-list-table">
+                  <thead>
+                    <tr>
+                      <th>Product Info</th>
+                      <th>Price</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                <tbody id="inventory-table-body">
+                    <!-- Dynamic inventory table rows populated by JS -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- See All button (shown only when > 3 products) -->
+              <div id="inventory-see-all-btn" onclick="app.openAllInventory()" style="display:none; align-items:center; justify-content:center; gap:0.5rem; padding:0.85rem 1rem; margin:0; border-top:1px solid var(--border-color); cursor:pointer; color:var(--accent-color); font-weight:700; font-size:0.9rem; transition:background 0.18s;"
+                onmouseenter="this.style.background='#F0F7FF'" onmouseleave="this.style.background=''">
+                <span>See All Products</span>
+                <i class="fa-solid fa-arrow-right" style="font-size:0.8rem;"></i>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- TAB 2: Shop Profile settings -->
+          <div class="dashboard-tab-panel" id="db-panel-profile" style="display: none;">
+            
+            <div class="merchant-settings-container">
+              
+              <!-- 1. Header Card -->
+              <div class="settings-header-card">
+                <div class="settings-header-left">
+                  <button type="button" class="settings-back-btn" onclick="app.switchMerchantTab('overview')" aria-label="Go Back">
+                    <i class="fa-solid fa-arrow-left"></i>
+                  </button>
+                  <div class="settings-header-text">
+                    <h2>Merchant Shop Settings</h2>
+                    <p>Update your shop information as it will appear to customers.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Settings Form -->
+              <form id="merchant-settings-form" onsubmit="app.saveMerchantProfile(event)">
+
+                <!-- 2. Business Information Card -->
+                <div class="settings-section-card">
+                  <div class="section-card-header">
+                    <div class="section-icon-badge blue-badge">
+                      <i class="fa-solid fa-store"></i>
+                    </div>
+                    <h3>Business Information</h3>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="settings-shop-name">Shop Name</label>
+                    <div class="input-with-check">
+                      <input type="text" id="settings-shop-name" required placeholder="e.g. Kofi Auto Spares" oninput="app.onSettingsInputChange(this)">
+                      <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="settings-description">Shop Description</label>
+                    <textarea id="settings-description" rows="4" maxlength="500" placeholder="Describe your shop..." oninput="app.updateDescCharCount(this)"></textarea>
+                    <div class="char-count-row">
+                      <span id="settings-desc-counter">0 / 500</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 3. Contact & Location Card -->
+                <div class="settings-section-card">
+                  <div class="section-card-header">
+                    <div class="section-icon-badge blue-badge">
+                      <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <h3>Contact & Location</h3>
+                  </div>
+
+                  <div class="form-row-2col">
+                    <div class="form-group">
+                      <label for="settings-contact-phone">WhatsApp Number</label>
+                      <div class="input-with-left-icon">
+                        <span class="left-input-icon whatsapp-color"><i class="fa-brands fa-whatsapp"></i></span>
+                        <input type="text" id="settings-contact-phone" required placeholder="+233 240 123 456" oninput="app.onSettingsInputChange(this)">
+                        <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="settings-location">Stall Location</label>
+                      <div class="input-with-left-icon">
+                        <span class="left-input-icon blue-color"><i class="fa-solid fa-location-dot"></i></span>
+                        <input type="text" id="settings-location" required placeholder="Stall A12, Section 3, Abossey Okai" oninput="app.onSettingsInputChange(this)">
+                        <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="settings-coordinates">GPS Coordinates</label>
+                    <div class="input-with-left-icon">
+                      <span class="left-input-icon blue-color"><i class="fa-solid fa-location-dot"></i></span>
+                      <input type="text" id="settings-coordinates" required placeholder="5.5562, -0.2284" oninput="app.updateMapPreviewLink(this.value)">
+                      <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                    </div>
+                  </div>
+
+                  <!-- Stylized Map Graphic Box -->
+                  <div class="settings-map-box">
+                    <div class="map-graphic-layer">
+                      <div class="map-grid-bg"></div>
+                      <div class="map-road map-road-main"></div>
+                      <div class="map-road map-road-sec"></div>
+                      <div class="map-green-area area-1"></div>
+                      <div class="map-green-area area-2"></div>
+                      <div class="map-marker-pin">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span class="map-pin-label" id="map-pin-shop-label">Abossey Okai</span>
+                      </div>
+                    </div>
+                    <a href="https://maps.google.com/?q=5.5562,-0.2284" id="settings-google-maps-link" target="_blank" rel="noopener" class="map-open-link">
+                      Open in Google Maps <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                  </div>
+                  <!-- Hidden input to maintain compatibility -->
+                  <input type="hidden" id="settings-category-tags">
+
+                <!-- 5. Action Footer Buttons -->
+                <div class="settings-footer-actions">
+                  <div class="footer-top-row">
+                    <button type="button" class="btn btn-settings-cancel" onclick="app.switchMerchantTab('overview')">Cancel</button>
+                    <button type="button" class="btn btn-settings-preview" onclick="app.previewMerchantShop()">
+                      <i class="fa-regular fa-eye"></i> Preview Shop
+                    </button>
+                  </div>
+                  <button type="submit" class="btn btn-settings-save full-width-save-btn" id="save-settings-btn">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                  </button>
+                </div>
+
+                <div class="security-footer-note">
+                  <i class="fa-solid fa-shield-halved"></i> All changes are saved securely and will be visible to customers.
+                </div>
+
+              </form>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ADMIN DASHBOARD VIEW -->
+      <section class="dashboard-view" id="admin-dashboard-panel" style="display: none;">
+        
+        <!-- Admin Sidebar -->
+        <aside class="dashboard-sidebar" id="admin-sidebar">
+          
+          <div class="dashboard-profile-card">
+            <div class="dashboard-avatar-upload">
+              <div class="dashboard-profile-avatar" id="admin-avatar-container" style="background: var(--accent-color); color: #fff;">A</div>
+            </div>
+            <h3 class="dashboard-shop-name" id="admin-display-name">Admin Kwame</h3>
+            <span class="dashboard-shop-location" id="admin-display-email"><i class="fa-solid fa-envelope"></i> korantenghenry2012@gmail.com</span>
+          </div>
+
+          <ul class="dashboard-menu">
+            <li class="dashboard-menu-item active" id="db-menu-admin-overview" onclick="app.switchAdminTab('overview')">
+              <i class="fa-solid fa-chart-line"></i> System Overview
+            </li>
+            <li class="dashboard-menu-item" id="db-menu-admin-merchants" onclick="app.switchAdminTab('merchants')">
+              <i class="fa-solid fa-shop"></i> Onboard &amp; Manage
+            </li>
+            <li class="dashboard-menu-item" id="db-menu-admin-listings" onclick="app.switchAdminTab('listings')">
+              <i class="fa-solid fa-gears"></i> Moderate Listings
+            </li>
+            <li class="dashboard-menu-item" id="db-menu-admin-taxonomy" onclick="app.switchAdminTab('taxonomy')">
+              <i class="fa-solid fa-tags"></i> Taxonomy Editor
+            </li>
+            <li class="dashboard-menu-item" id="db-menu-admin-reports" onclick="app.switchAdminTab('reports')">
+              <i class="fa-solid fa-flag"></i> Buyer Reports
+            </li>
+            <li class="dashboard-menu-item" id="db-menu-admin-logs" onclick="app.switchAdminTab('logs')">
+              <i class="fa-solid fa-list-check"></i> Audit Logs
+            </li>
+            <li class="dashboard-menu-item" onclick="app.logoutMerchant()">
+              <i class="fa-solid fa-right-from-bracket"></i> Exit Admin Panel
+            </li>
+          </ul>
+
+        </aside>
+
+        <!-- Admin Main Content Panel -->
+        <div class="dashboard-content-panel" id="admin-dashboard-content">
+          
+          <!-- TAB 1: System Overview KPIs -->
+          <div class="dashboard-tab-panel" id="admin-panel-overview">
+            <div class="dashboard-panel-header" style="margin-bottom: 1.5rem;">
+              <h2 style="font-size: 1.25rem;">System Overview</h2>
+            </div>
+            
+            <div class="dashboard-metrics-grid">
+              <div class="metric-card">
+                <div class="metric-info">
+                  <span class="metric-label">Total Verified Dealers</span>
+                  <span class="metric-value" id="admin-metric-merchants">0</span>
+                </div>
+                <div class="metric-icon"><i class="fa-solid fa-users"></i></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-info">
+                  <span class="metric-label">Total Listings</span>
+                  <span class="metric-value" id="admin-metric-listings">0</span>
+                </div>
+                <div class="metric-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-info">
+                  <span class="metric-label">Aggregate Store Views</span>
+                  <span class="metric-value" id="admin-metric-views">0</span>
+                </div>
+                <div class="metric-icon"><i class="fa-solid fa-eye"></i></div>
+              </div>
+              <div class="metric-card" id="admin-metric-reports-card" onclick="app.switchAdminTab('reports')" style="cursor: pointer;">
+                <div class="metric-info">
+                  <span class="metric-label">Unresolved Flags</span>
+                  <span class="metric-value" id="admin-metric-reports" style="color: var(--accent-color);">0</span>
+                </div>
+                <div class="metric-icon" style="color: var(--accent-color);"><i class="fa-solid fa-flag"></i></div>
+              </div>
+            </div>
+
+            <!-- Advanced Analytics Section -->
+            <div class="form-row" style="margin-top: 1.5rem; gap: 1.5rem;">
+              
+              <!-- Listings and Leads breakdown -->
+              <div class="inventory-card" style="flex: 1.2; padding: 1.25rem; min-width: 290px;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 1rem; color: var(--charcoal);"><i class="fa-solid fa-chart-pie"></i> Marketplace Distribution & Clicks</h3>
+                
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #F1F5F9; padding-bottom: 0.4rem; font-size: 0.85rem;">
+                    <span style="color: var(--text-muted);"><i class="fa-solid fa-check-circle" style="color:var(--whatsapp-color);"></i> Live Listings:</span>
+                    <strong id="analytics-count-live" style="color: var(--charcoal);">0</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #F1F5F9; padding-bottom: 0.4rem; font-size: 0.85rem;">
+                    <span style="color: var(--text-muted);"><i class="fa-solid fa-clock" style="color:var(--accent-color);"></i> Pending Review:</span>
+                    <strong id="analytics-count-pending" style="color: var(--charcoal);">0</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #F1F5F9; padding-bottom: 0.4rem; font-size: 0.85rem;">
+                    <span style="color: var(--text-muted);"><i class="fa-solid fa-eye-slash"></i> Hidden Listings:</span>
+                    <strong id="analytics-count-hidden" style="color: var(--charcoal);">0</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #F1F5F9; padding-bottom: 0.4rem; font-size: 0.85rem;">
+                    <span style="color: var(--text-muted);"><i class="fa-solid fa-triangle-exclamation" style="color:#DC2626;"></i> Out of Stock:</span>
+                    <strong id="analytics-count-oos" style="color: var(--charcoal);">0</strong>
+                  </div>
+                  
+                  <div style="margin-top: 0.5rem; background: var(--bg-light); border-radius: 6px; padding: 0.75rem;">
+                    <h4 style="font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--primary-color);"><i class="fa-solid fa-bullseye"></i> Merchant Lead Generation Metrics</h4>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; padding: 2px 0;">
+                      <span>WhatsApp Redirections:</span>
+                      <strong id="analytics-lead-whatsapp" style="color: var(--charcoal);">0</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; padding: 2px 0;">
+                      <span>Google Map Directions:</span>
+                      <strong id="analytics-lead-maps" style="color: var(--charcoal);">0</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Top Performing Catalog items list -->
+              <div class="inventory-card" style="flex: 1; padding: 1.25rem; min-width: 290px;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 1rem; color: var(--charcoal);"><i class="fa-solid fa-ranking-star"></i> Top Category & Brand Views</h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.8rem;">
+                  <div>
+                    <h4 style="color: var(--primary-color); font-size: 0.85rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 2px;">Popular Brands</h4>
+                    <ul id="analytics-top-brands" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.35rem;">
+                      <!-- Loaded dynamically -->
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 style="color: var(--primary-color); font-size: 0.85rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 2px;">Categories</h4>
+                    <ul id="analytics-top-categories" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.35rem;">
+                      <!-- Loaded dynamically -->
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Global System Settings Card -->
+            <div class="inventory-card" style="margin-top: 1.5rem; padding: 1.25rem;">
+              <h3 style="font-size: 1rem; margin-bottom: 1rem; color: var(--primary-color);"><i class="fa-solid fa-sliders"></i> Global System Settings</h3>
+              
+              <div class="form-row" style="margin-bottom: 0; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div class="form-group" style="flex: 1; margin-bottom: 0; min-width: 250px;">
+                  <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                    <input type="checkbox" id="admin-setting-premoderation" onchange="app.togglePremoderationSetting()">
+                    Enable Pre-Publish Moderation (Hold listings in Pending review)
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Action Info card -->
+            <div class="inventory-card" style="margin-top: 1.5rem; padding: 1.5rem;">
+              <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--primary-color);"><i class="fa-solid fa-circle-info"></i> Administrative Guide</h3>
+              <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted);">
+                Welcome to the Abossey Okai Magazine Admin Console. This central dashboard allows you to onboard local parts dealers, audit compatibility lists, and moderate catalog listings. All merchants onboarded through this console are verified by default.
+              </p>
+            </div>
+          </div>
+
+          <!-- TAB 2: Onboard & Manage Merchants -->
+          <div class="dashboard-tab-panel" id="admin-panel-merchants" style="display: none;">
+            
+            <!-- Onboard Form Container (EXACT 1-TO-1 REFLECTION OF MERCHANT SHOP PROFILE TAB) -->
+            <div class="merchant-settings-container" style="margin-bottom: 2rem;">
+              
+              <!-- 1. Header Card -->
+              <div class="settings-header-card">
+                <div class="settings-header-left">
+                  <div class="section-icon-badge blue-badge">
+                    <i class="fa-solid fa-user-plus"></i>
+                  </div>
+                  <div class="settings-header-text">
+                    <h2>Onboard New Verified Dealer</h2>
+                    <p>Register a local dealer with their shop profile details.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Onboard Form -->
+              <form id="admin-onboard-merchant-form" onsubmit="app.onboardMerchant(event)">
+
+                <!-- Hidden compatibility inputs -->
+                <input type="hidden" id="onboard-merchant-email" value="">
+                <input type="hidden" id="onboard-merchant-specialty" value="general">
+
+                <!-- 2. Business Information Card -->
+                <div class="settings-section-card">
+                  <div class="section-card-header">
+                    <div class="section-icon-badge blue-badge">
+                      <i class="fa-solid fa-store"></i>
+                    </div>
+                    <h3>Business Information</h3>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="onboard-merchant-shop">Shop Name</label>
+                    <div class="input-with-check">
+                      <input type="text" id="onboard-merchant-shop" required placeholder="e.g. Kofi Auto Spares" oninput="app.onSettingsInputChange(this)">
+                      <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="onboard-merchant-desc">Shop Description</label>
+                    <textarea id="onboard-merchant-desc" rows="4" maxlength="500" placeholder="Describe your shop..." oninput="app.updateDescCharCount(this)"></textarea>
+                    <div class="char-count-row">
+                      <span id="onboard-desc-counter">0 / 500</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 3. Contact & Location Card -->
+                <div class="settings-section-card">
+                  <div class="section-card-header">
+                    <div class="section-icon-badge blue-badge">
+                      <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <h3>Contact &amp; Location</h3>
+                  </div>
+
+                  <div class="form-row-2col">
+                    <div class="form-group">
+                      <label for="onboard-merchant-phone">WhatsApp Number</label>
+                      <div class="input-with-left-icon">
+                        <span class="left-input-icon whatsapp-color"><i class="fa-brands fa-whatsapp"></i></span>
+                        <input type="text" id="onboard-merchant-phone" required placeholder="+233 240 123 456" oninput="app.onSettingsInputChange(this)">
+                        <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="onboard-merchant-location">Stall Location</label>
+                      <div class="input-with-left-icon">
+                        <span class="left-input-icon blue-color"><i class="fa-solid fa-location-dot"></i></span>
+                        <input type="text" id="onboard-merchant-location" required placeholder="Stall A12, Section 3, Abossey Okai" oninput="app.onSettingsInputChange(this)">
+                        <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="onboard-merchant-coords">GPS Coordinates</label>
+                    <div class="input-with-left-icon">
+                      <span class="left-input-icon blue-color"><i class="fa-solid fa-location-dot"></i></span>
+                      <input type="text" id="onboard-merchant-coords" required placeholder="5.5562, -0.2284" oninput="app.updateMapPreviewLink(this.value)">
+                      <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                    </div>
+                  </div>
+
+                  <!-- Stylized Map Graphic Box -->
+                  <div class="settings-map-box">
+                    <div class="map-graphic-layer">
+                      <div class="map-grid-bg"></div>
+                      <div class="map-road map-road-main"></div>
+                      <div class="map-road map-road-sec"></div>
+                      <div class="map-green-area area-1"></div>
+                      <div class="map-green-area area-2"></div>
+                      <div class="map-marker-pin">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span class="map-pin-label" id="onboard-pin-shop-label">Abossey Okai</span>
+                      </div>
+                    </div>
+                    <a href="https://maps.google.com/?q=5.5562,-0.2284" id="onboard-google-maps-link" target="_blank" rel="noopener" class="map-open-link">
+                      Open in Google Maps <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Submit Action Button -->
+                <button type="submit" class="btn btn-settings-save full-width-save-btn" style="margin-top: 0.5rem;">
+                  <i class="fa-solid fa-check"></i> Register &amp; Onboard Dealer
+                </button>
+              </form>
+            </div>
+
+            <!-- Merchants list -->
+            <div class="inventory-card">
+              <div class="dashboard-panel-header" style="padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid var(--border-color);">
+                <h3 style="font-size: 1rem; margin: 0; font-weight: 700; color: var(--charcoal); display: flex; align-items: center; gap: 0.4rem;">
+                  <i class="fa-solid fa-users" style="color: var(--accent-color);"></i> Registered Verified Merchants
+                </h3>
+                <div class="admin-merchant-search-wrapper" style="position: relative; min-width: 240px; flex: 0 1 320px;">
+                  <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem; pointer-events: none;"></i>
+                  <input type="text" id="admin-merchants-search" placeholder="Search merchant by name, phone, email or location..." oninput="app.renderAdminMerchants()" style="width: 100%; padding: 0.55rem 0.85rem 0.55rem 2.4rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; background: #ffffff; color: #0f172a; transition: all 0.2s ease;">
+                </div>
+              </div>
+              <div class="table-wrapper">
+                <table class="inventory-table">
+                  <thead>
+                    <tr>
+                      <th>Dealer Details</th>
+                      <th>Location</th>
+                      <th>Verification Status / Notes</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-merchants-table-body">
+                    <!-- Loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- TAB 3: Moderate Listings -->
+          <div class="dashboard-tab-panel" id="admin-panel-listings" style="display: none;">
+            <div class="inventory-card">
+              <div class="dashboard-panel-header" style="padding: 1rem; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid var(--border-color);">
+                <h3 style="font-size: 1rem; margin: 0;"><i class="fa-solid fa-gears"></i> Moderate Marketplace Listings</h3>
+                <input type="text" id="admin-listings-search" placeholder="Search by name, brand, merchant..." style="max-width: 250px; font-size: 0.85rem; padding: 0.35rem 0.75rem; border: 1px solid var(--border-color); border-radius: 4px;" oninput="app.renderAdminListings()">
+              </div>
+              <!-- Status filter tabs for moderation -->
+              <div style="display: flex; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid var(--border-color); background: var(--bg-light); flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm active" id="admin-listing-tab-all" onclick="app.setAdminListingsStatusFilter('all')" style="font-size: 0.75rem; padding: 4px 10px;">All</button>
+                <button class="btn btn-secondary btn-sm" id="admin-listing-tab-pending" onclick="app.setAdminListingsStatusFilter('Pending Review')" style="font-size: 0.75rem; padding: 4px 10px;">Pending Review <span id="admin-listings-count-pending" class="badge" style="background: var(--accent-color); color: #fff; margin-left: 3px; font-size: 0.65rem; padding: 1px 4px;">0</span></button>
+                <button class="btn btn-secondary btn-sm" id="admin-listing-tab-live" onclick="app.setAdminListingsStatusFilter('Live')" style="font-size: 0.75rem; padding: 4px 10px;">Live</button>
+                <button class="btn btn-secondary btn-sm" id="admin-listing-tab-hidden" onclick="app.setAdminListingsStatusFilter('Hidden')" style="font-size: 0.75rem; padding: 4px 10px;">Hidden</button>
+                <button class="btn btn-secondary btn-sm" id="admin-listing-tab-oos" onclick="app.setAdminListingsStatusFilter('oos')" style="font-size: 0.75rem; padding: 4px 10px;">Out of Stock</button>
+              </div>
+              <div class="table-wrapper">
+                <table class="inventory-table">
+                  <thead>
+                    <tr>
+                      <th>Product Info</th>
+                      <th>Seller / Dealer</th>
+                      <th>Stock / Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-listings-table-body">
+                    <!-- Loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: Taxonomy & Categories Editor -->
+          <div class="dashboard-tab-panel" id="admin-panel-taxonomy" style="display: none;">
+            <div class="form-row">
+              
+              <!-- Vehicle Brands & Models Column -->
+              <div class="inventory-card" style="flex: 1.2; padding: 1.25rem; min-width: 280px;">
+                <h3 style="font-size: 1rem; margin-bottom: 1rem;"><i class="fa-solid fa-car"></i> Vehicle Taxonomy</h3>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                  <label for="admin-select-make-edit">Select Vehicle Brand</label>
+                  <select id="admin-select-make-edit" onchange="app.onAdminTaxonomyMakeChange()">
+                    <!-- Populated dynamically -->
+                  </select>
+                </div>
+
+                <div style="background: var(--bg-light); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                  <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--primary-color);">Add New Brand</h4>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="admin-new-make-input" placeholder="e.g. Toyota" style="flex: 1; padding: 0.35rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <button class="btn btn-primary btn-sm" onclick="app.addAdminMake()">Add</button>
+                  </div>
+                </div>
+
+                <div style="background: var(--bg-light); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                  <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--primary-color);">Add New Model to Selected Brand</h4>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="admin-new-model-input" placeholder="e.g. Prius" style="flex: 1; padding: 0.35rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <button class="btn btn-primary btn-sm" onclick="app.addAdminModel()">Add Model</button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>Current Models list</label>
+                  <div id="admin-models-list-display" style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; max-height: 120px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: #fff;">
+                    <!-- Models pills -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Categories Column -->
+              <div class="inventory-card" style="flex: 1; padding: 1.25rem; min-width: 280px;">
+                <h3 style="font-size: 1rem; margin-bottom: 1rem;"><i class="fa-solid fa-list"></i> Catalog Categories</h3>
+
+                <div style="background: var(--bg-light); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                  <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--primary-color);">Add Spare Parts Category</h4>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="admin-new-part-cat" placeholder="e.g. Fuel System" style="flex: 1; padding: 0.35rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <button class="btn btn-primary btn-sm" onclick="app.addAdminPartCategory()">Add</button>
+                  </div>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                  <label>Spare Parts Categories</label>
+                  <div id="admin-part-categories-list" style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem; max-height: 150px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: #fff;">
+                    <!-- Categories -->
+                  </div>
+                </div>
+
+                <div style="background: var(--bg-light); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                  <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--primary-color);">Add Car Accessory Category</h4>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="admin-new-acc-cat" placeholder="e.g. Car Care" style="flex: 1; padding: 0.35rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <button class="btn btn-primary btn-sm" onclick="app.addAdminAccessoryCategory()">Add</button>
+                  </div>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                  <label>Car Accessories Categories</label>
+                  <div id="admin-acc-categories-list" style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem; max-height: 150px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: #fff;">
+                    <!-- Categories -->
+                  </div>
+                </div>
+
+                <div style="background: var(--bg-light); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                  <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--primary-color);">Add Popular Brand</h4>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="admin-new-brand" placeholder="e.g. Akebono" style="flex: 1; padding: 0.35rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <button class="btn btn-primary btn-sm" onclick="app.addAdminBrand()">Add</button>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label>Popular Brands List</label>
+                  <div id="admin-brands-list" style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem; max-height: 150px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: #fff;">
+                    <!-- Brands -->
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+
+          <!-- TAB 5: Buyer Reports Queue -->
+          <div class="dashboard-tab-panel" id="admin-panel-reports" style="display: none;">
+            <div class="inventory-card">
+              <div class="dashboard-panel-header" style="padding: 1rem;">
+                <h3 style="font-size: 1rem; margin: 0;">Buyer Reported Listings</h3>
+              </div>
+              <div class="table-wrapper">
+                <table class="inventory-table">
+                  <thead>
+                    <tr>
+                      <th>Listing Info</th>
+                      <th>Report Reason / Date</th>
+                      <th>Moderation Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-reports-table-body">
+                    <!-- Loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 6: Audit Logs -->
+          <div class="dashboard-tab-panel" id="admin-panel-logs" style="display: none;">
+            <div class="inventory-card">
+              <div class="dashboard-panel-header" style="padding: 1rem; justify-content: space-between; align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="font-size: 1rem; margin: 0;"><i class="fa-solid fa-list-check"></i> Admin Operation Audit Trail</h3>
+                <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; font-size: 0.75rem;" onclick="app.clearAdminAuditLogs()">
+                  <i class="fa-solid fa-trash-can"></i> Clear Audit Logs
+                </button>
+              </div>
+              <div class="table-wrapper">
+                <table class="inventory-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 170px;">Timestamp</th>
+                      <th style="width: 140px;">Action Type</th>
+                      <th style="width: 180px;">Target Item</th>
+                      <th>Operational Details</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-logs-table-body">
+                    <!-- Loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Global Footer -->
+    <footer id="main-footer">
+      <div class="footer-grid">
+        
+        <div class="footer-nav-row">
+          <div class="footer-col" id="footer-col-nav">
+            <h4 class="footer-title">Browse</h4>
+            <ul class="footer-links">
+              <li><a href="#" onclick="app.filterByMainType('parts'); return false;">Spare Parts</a></li>
+              <li><a href="#" onclick="app.filterByMainType('accessories'); return false;">Accessories</a></li>
+              <li><a href="#why-us-section">Merchant Trust</a></li>
+              <li><a href="#faq-section">User FAQ</a></li>
+            </ul>
+          </div>
+        
+          <div class="footer-col" id="footer-col-legal">
+            <h4 class="footer-title">Seller Hub</h4>
+            <ul class="footer-links">
+              <li><a href="#" onclick="app.openMerchantAuth(true); return false;">Register Seller Stall</a></li>
+              <li><a href="#" onclick="app.toggleMerchantPortal(); return false;">Merchant Portal Login</a></li>
+              <li><a href="#">Trading Guidelines</a></li>
+              <li><a href="#">Report Scam Listings</a></li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="footer-col" id="footer-col-contact">
+          <h4 class="footer-title">Contact</h4>
+          <ul class="footer-links">
+            <li><span><i class="fa-solid fa-envelope"></i> support@abbosseyokaimag.com</span></li>
+            <li><span><i class="fa-solid fa-phone"></i> +233 24 000 0000</span></li>
+            <li><span><i class="fa-solid fa-location-dot"></i> Abossey Okai Auto Market, Accra, Ghana</span></li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="footer-bottom">
+        <p id="copyright-text">&copy; 2026 ABBOSSEY OKAI MAGAZINE. All rights reserved.</p>
+        <p>Built with <i class="fa-solid fa-heart" style="color: var(--accent-color);"></i> for Ghanaian car community.</p>
+      </div>
+    </footer>
+
+    <!-- PRODUCT DETAIL MODAL (PDP OVERLAY SCREEN) -->
+    <div class="pdp-overlay" id="pdp-overlay-modal" onclick="app.onOverlayClick(event, 'pdp-overlay-modal')">
+      <div class="pdp-card" id="pdp-detail-card">
+        <button class="pdp-close-btn" onclick="app.closePdp()" aria-label="Close details">
+          <i class="fa-solid fa-xmark fa-lg"></i>
+        </button>
+        
+        <div class="pdp-body" id="pdp-main-content">
+          <!-- Left Column: Image Gallery -->
+          <div class="pdp-gallery">
+            <div class="pdp-main-image-container" id="pdp-gallery-main">
+              <!-- JS Populated img tag -->
+            </div>
+            <div class="pdp-thumbnails" id="pdp-gallery-thumbnails">
+              <!-- JS Populated image list items -->
+            </div>
+          </div>
+          
+          <!-- Right Column: Details Sheet -->
+          <div class="pdp-info" id="pdp-detailed-information">
+            
+            <div class="pdp-header-row">
+              <div class="pdp-badges-row">
+                <span class="badge" id="pdp-badge-condition">New</span>
+                <span class="badge badge-stock" id="pdp-badge-stock">In Stock</span>
+              </div>
+              <h2 class="pdp-title" id="pdp-title-text">Brake Disc Rotors - Toyota Corolla</h2>
+              <span class="product-card-category" id="pdp-category-text">Brake Rotors</span>
+            </div>
+
+            <div class="pdp-price-row" id="pdp-price-wrapper">
+              <span class="pdp-price-label">Price</span>
+              <div class="pdp-price-box">
+                <span class="currency">GHS</span>
+                <span class="price" id="pdp-price-text">₵450.00</span>
+              </div>
+            </div>
+
+            <div class="compatibility-section" id="pdp-fitment-section">
+              <span class="compatibility-title">Vehicle Compatibility</span>
+              <div class="compatibility-list" id="pdp-fitment-list">
+                <!-- JS populated tags or Universal label -->
+              </div>
+            </div>
+
+            <!-- Merchant Profile Card inside PDP -->
+            <div class="merchant-info-card" id="pdp-merchant-card">
+              <div class="merchant-profile-header">
+                <div class="merchant-avatar" id="pdp-merchant-avatar">D</div>
+                <div class="merchant-meta">
+                  <span class="merchant-name" id="pdp-merchant-name">Dexter Auto Parts</span>
+                  <span class="merchant-since" id="pdp-merchant-since">Member since Jan 2024</span>
+                </div>
+                <span class="verified-dealer-tag" id="pdp-merchant-verified-badge" style="margin-left: auto;">
+                  <i class="fa-solid fa-circle-check"></i> Verified
+                </span>
+              </div>
+              
+              <div class="merchant-address" id="pdp-merchant-location">
+                <i class="fa-solid fa-store"></i> <span>Stall A4, Near Shell Station, Abossey Okai</span>
+              </div>
+              
+              <div class="merchant-ctas">
+                <button class="btn btn-accent" id="pdp-whatsapp-btn" onclick="app.contactMerchantWhatsApp()">
+                  <i class="fa-brands fa-whatsapp fa-lg"></i> Chat Merchant on WhatsApp
+                </button>
+                <button class="btn btn-secondary" id="pdp-maps-btn" onclick="app.locateMerchantShop()">
+                  <i class="fa-solid fa-map-location-dot"></i> Locate Merchant Shop
+                </button>
+              </div>
+            </div>
+
+            <div class="report-link-wrapper">
+              <span class="report-link" id="pdp-report-action" onclick="app.reportListing()">
+                <i class="fa-solid fa-triangle-exclamation"></i> Report this listing for review
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD/EDIT PRODUCT MODAL FORM (3-STEP WIZARD) -->
+    <div class="form-modal-overlay" id="product-form-modal" onclick="app.onOverlayClick(event, 'product-form-modal')">
+      <div class="form-modal-card" id="product-listing-form-card">
+        
+        <div class="form-modal-header" style="flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <h3 class="form-modal-title" id="form-modal-title-text">Add New Listing</h3>
+            <button class="action-icon-btn" onclick="app.closeProductForm()" aria-label="Close Form">
+              <i class="fa-solid fa-xmark fa-lg"></i>
+            </button>
+          </div>
+          <!-- 2 Tabs: Spare Parts and Car Accessory -->
+          <div class="widget-mode-tabs" id="listing-form-tabs" style="width: 100%; margin: 0;">
+            <button type="button" class="widget-mode-tab active" id="form-tab-parts" onclick="app.setFormListingType('parts')">
+              <i class="fa-solid fa-car-side"></i> Spare Parts
+            </button>
+            <button type="button" class="widget-mode-tab" id="form-tab-accessories" onclick="app.setFormListingType('accessories')">
+              <i class="fa-solid fa-puzzle-piece"></i> Car Accessories
+            </button>
+          </div>
+
+          <!-- Wizard Step Indicator -->
+          <div class="form-wizard-steps" id="form-wizard-steps">
+            <div class="wizard-step-item active" id="wizard-step-indicator-1" onclick="app.setFormStep(1)" title="Step 1: Basics">
+              <span class="step-num">1</span>
+            </div>
+            <div class="wizard-step-connector"></div>
+            <div class="wizard-step-item" id="wizard-step-indicator-2" onclick="app.setFormStep(2)" title="Step 2: Brand & Fitment">
+              <span class="step-num">2</span>
+            </div>
+            <div class="wizard-step-connector"></div>
+            <div class="wizard-step-item" id="wizard-step-indicator-3" onclick="app.setFormStep(3)" title="Step 3: Images & Finish">
+              <span class="step-num">3</span>
+            </div>
+          </div>
+        </div>
+
+        <form id="product-submission-form" onsubmit="app.submitProductForm(event)">
+          
+          <div class="form-modal-body">
+            <!-- Hidden field for active listing type -->
+            <input type="hidden" id="form-product-type" value="parts">
+            
+            <!-- STEP 1: Basic Information -->
+            <div class="form-step-pane active" id="form-step-pane-1">
+              <div class="step-heading">
+                <h4>Section 1: Basic Details</h4>
+                <p>Enter the product name, price, condition, and category.</p>
+              </div>
+
+              <div class="form-group">
+                <label for="form-product-name">Product / Part Name <span class="required-star">*</span></label>
+                <input type="text" id="form-product-name" required placeholder="e.g. Front Brake Pads Ceramic">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="form-product-price">Price (GHS) <span class="required-star">*</span></label>
+                  <input type="number" id="form-product-price" min="1" step="any" required placeholder="e.g. 250">
+                </div>
+                <div class="form-group">
+                  <label for="form-product-condition">Condition <span class="required-star">*</span></label>
+                  <select id="form-product-condition" required>
+                    <option value="New">New</option>
+                    <option value="Used">Used</option>
+                    <option value="Refurbished" id="condition-refurbished-option">Refurbished</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="form-product-category">Category <span class="required-star">*</span></label>
+                <select id="form-product-category" required>
+                  <!-- Populated by JS based on selected type -->
+                </select>
+              </div>
+            </div>
+
+            <!-- STEP 2: Brand & Fitment -->
+            <div class="form-step-pane" id="form-step-pane-2" style="display: none;">
+              
+              <div class="form-group">
+                <label for="form-product-brand">Brand <span class="required-star">*</span></label>
+                <input type="text" id="form-product-brand" list="form-brands-datalist" placeholder="e.g. Honda, Toyota, Bosch" required style="font-size: 0.85rem;" oninput="app.onFormBrandChange()" onchange="app.onFormBrandChange()">
+                <datalist id="form-brands-datalist">
+                  <!-- Loaded dynamically -->
+                </datalist>
+              </div>
+
+              <!-- Spare Parts Specific Fields (Model (Brand) and Year) -->
+              <div class="form-group" id="form-field-vehicle-group" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <div class="form-group">
+                  <label for="form-fitment-make-model">Model (Brand) <span class="required-star">*</span></label>
+                  <input type="text" id="form-fitment-make-model" list="form-models-datalist" placeholder="e.g. Civic, CR-V, Corolla" required style="font-size: 0.85rem;" onfocus="app.onFormBrandChange()">
+                  <datalist id="form-models-datalist">
+                    <!-- Populated dynamically based on selected Brand -->
+                  </datalist>
+                </div>
+
+                <div class="form-group">
+                  <label for="form-fitment-years">Year <span class="required-star">*</span></label>
+                  <input type="text" id="form-fitment-years" placeholder="e.g. 2018-2022" required style="font-size: 0.85rem;">
+                </div>
+              </div>
+
+              <!-- Accessories Specific Fields (Universal toggle) -->
+              <div class="form-group" id="form-field-universal-group" style="display: none;">
+                <label class="form-checkbox-group">
+                  <input type="checkbox" id="form-universal-fit" checked onchange="app.onUniversalToggle(this)"> Universal Fit (Accessories only)
+                </label>
+              </div>
+            </div>
+
+            <!-- STEP 3: Images & Finish (Attach Image - Not Compulsory) -->
+            <div class="form-step-pane" id="form-step-pane-3" style="display: none;">
+              <div class="step-heading">
+                <h4>Section 3: Product Photos & Finishing Touches</h4>
+                <p>Upload product images (optional) and set stock availability.</p>
+              </div>
+
+              <!-- Image Uploader (Optional) -->
+              <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label style="margin: 0;">Product Images (Up to 5 images)</label>
+                  <span class="badge-optional-tag">Optional / Not compulsory</span>
+                </div>
+                <div class="form-image-uploader" onclick="document.getElementById('form-image-input').click()">
+                  <div class="uploader-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                  <div class="uploader-text">Click to upload photos from your device (Optional)</div>
+                  <input type="file" id="form-image-input" style="display: none;" multiple accept="image/*" onchange="app.onFormImageUpload(event)">
+                </div>
+                <div class="uploader-preview-row" id="form-image-previews">
+                  <!-- Preview image list items -->
+                </div>
+              </div>
+
+              <!-- Description -->
+              <div class="form-group">
+                <label for="form-product-desc">Listing Description</label>
+                <textarea id="form-product-desc" rows="3" placeholder="Provide extra specifications or details..."></textarea>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="form-modal-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 1rem;">
+            <button type="button" class="btn" id="form-delete-btn" onclick="app.deleteProductFromForm()" style="display: none; background-color: #DC2626; color: white;">Delete Product</button>
+            <div style="display: flex; gap: 0.5rem; margin-left: auto; align-items: center;">
+              <button type="button" class="btn btn-secondary" onclick="app.closeProductForm()">Cancel</button>
+              <button type="button" class="btn btn-secondary" id="form-prev-btn" onclick="app.prevFormStep()" style="display: none;">
+                <i class="fa-solid fa-arrow-left"></i> Back
+              </button>
+              <button type="button" class="btn btn-primary" id="form-next-btn" onclick="app.nextFormStep()">
+                Next <i class="fa-solid fa-arrow-right"></i>
+              </button>
+              <button type="submit" class="btn btn-accent" id="submit-form-save-btn" style="display: none;">
+                <i class="fa-solid fa-check"></i> Publish Listing
+              </button>
+            </div>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+
+    <!-- MERCHANT AUTH MODAL -->
+    <div class="auth-overlay" id="auth-modal" onclick="app.onOverlayClick(event, 'auth-modal')">
+      <div class="auth-card" id="auth-card-panel">
+        
+        <div class="auth-header" style="position: relative;">
+          <button class="search-modal-close-btn" onclick="app.closeMerchantAuth()" aria-label="Close modal" style="position: absolute; right: 1rem; top: 1rem;">&times;</button>
+          <div class="auth-logo"><i class="fa-solid fa-gears"></i> ABBOSSEY OKAI <span>MAGAZINE</span></div>
+        </div>
+
+        <div class="auth-body">
+          
+          <!-- VIEW 1: Initial Login Options -->
+          <div id="auth-view-initial">
+            
+            <!-- Option 1: Log in with Google -->
+            <button type="button" class="btn btn-google-sso" onclick="app.handleGoogleSSOClick()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0.75rem 1rem; border: 1px solid #dadce0; border-radius: 8px; background-color: #ffffff; color: #3c4043; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 1rem;">
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.4-1.57-5.12-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z"/>
+                <path fill="#FBBC05" d="M3.88 10.78c-.18-.53-.28-1.09-.28-1.78s.1-1.25.28-1.78L.97 4.96C.35 6.19 0 7.56 0 9s.35 2.81.97 4.04l2.91-2.26z"/>
+                <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.45 2.02.97 4.96l2.91 2.26C4.6 5.05 6.62 3.58 9 3.58z"/>
+              </svg>
+              Log in with Google
+            </button>
+
+            <div class="auth-divider">or</div>
+
+            <!-- Option 2: Enter Email -->
+            <form id="google-email-form" onsubmit="app.handleGoogleEmailSubmit(event)" style="margin-bottom: 1rem;">
+              <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label for="auth-google-email-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-envelope"></i> Enter Email Address</label>
+                <input type="email" id="auth-google-email-input" placeholder="e.g. merchant@gmail.com" required style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
+              </div>
+              <button type="submit" class="btn btn-primary" style="width: 100%;">
+                Log in with Email
+              </button>
+            </form>
+            
+            <div class="auth-divider">or</div>
+
+            <!-- Option 3: Enter Phone Number -->
+            <form id="merchant-login-form" onsubmit="app.simulatePhoneAuth(event)">
+              <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label for="auth-phone-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-phone"></i> Enter Phone Number</label>
+                <input type="text" id="auth-phone-input" placeholder="e.g. +233 24 123 4567" required style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
+              </div>
+              
+              <div id="auth-sms-code-group" style="display: none; margin-bottom: 1rem;">
+                <div class="form-group">
+                  <label for="auth-sms-input" style="font-size: 0.85rem; font-weight: 600;">Enter 6-Digit SMS Verification Code</label>
+                  <input type="text" id="auth-sms-input" placeholder="Enter code sent to your phone">
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-secondary" id="auth-submit-btn" style="width: 100%;">
+                Send Verification Code
+              </button>
+            </form>
+          </div>
+
+          <!-- VIEW 3: Admin Password Input -->
+          <div id="auth-view-admin-password" class="auth-admin-card-view" style="display: none;">
+            
+            <div class="admin-access-subtitle">Admin Access</div>
+
+            <form id="admin-password-form" onsubmit="app.handleAdminPasswordSubmit(event)">
+              <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label for="auth-admin-password-input" class="admin-input-label">
+                  <i class="fa-solid fa-lock"></i>
+                  Admin Password
+                </label>
+                <div class="admin-password-input-wrapper">
+                  <input type="password" id="auth-admin-password-input" placeholder="••••••••" required>
+                  <button type="button" class="admin-pass-toggle-btn" onclick="app.toggleAdminPasswordVisibility()" aria-label="Toggle password visibility">
+                    <i class="fa-regular fa-eye-slash" id="toggle-admin-pass-btn"></i>
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-admin-verify-submit">
+                Verify &amp; Log In
+              </button>
+            </form>
+
+            <div class="admin-login-note">Log in as Admin to manage content</div>
+
+            <button type="button" class="admin-back-home-btn" onclick="app.showAuthView('initial')">
+              <i class="fa-solid fa-chevron-left"></i> Back to Home
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- NEW USER ONBOARDING MODAL -->
+    <div class="auth-overlay" id="onboarding-modal" onclick="app.onOverlayClick(event, 'onboarding-modal')">
+      <div class="onboarding-card" id="onboarding-card-panel">
+
+        <div class="onboarding-header">
+          <div class="onboarding-step-indicator">
+            <div class="step-dot active" id="onboard-step-1-dot"></div>
+            <div class="step-line" id="onboard-step-line"></div>
+            <div class="step-dot" id="onboard-step-2-dot"></div>
+          </div>
+          <h3 class="onboarding-title" id="onboarding-title-text">Welcome! Tell us about yourself</h3>
+          <p class="onboarding-subtitle" id="onboarding-subtitle-text">This helps buyers find and trust your shop</p>
+        </div>
+
+        <form id="onboarding-form" onsubmit="app.submitOnboarding(event)">
+
+          <!-- Step 1: Personal Details -->
+          <div class="onboarding-step" id="onboarding-step-1">
+            <div class="onboarding-body">
+
+              <div class="form-group">
+                <label for="onboard-fullname"><i class="fa-solid fa-user"></i> Full Name</label>
+                <input type="text" id="onboard-fullname" placeholder="e.g. Kwame Mensah" required>
+              </div>
+
+              <div class="form-group">
+                <label for="onboard-email"><i class="fa-solid fa-envelope"></i> Email Address</label>
+                <input type="email" id="onboard-email" placeholder="e.g. kwame@email.com">
+              </div>
+
+              <div class="form-group">
+                <label for="onboard-phone"><i class="fa-solid fa-phone"></i> Phone / WhatsApp Number</label>
+                <input type="tel" id="onboard-phone" placeholder="e.g. +233 24 123 4567" required>
+              </div>
+
+            </div>
+
+            <div class="onboarding-footer">
+              <button type="button" class="btn btn-secondary" onclick="app.cancelOnboarding()">Cancel</button>
+              <button type="button" class="btn btn-primary" onclick="app.goToOnboardingStep(2)">
+                Next: Shop Details <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 2: Shop Details -->
+          <div class="onboarding-step" id="onboarding-step-2" style="display: none;">
+            <div class="onboarding-body">
+
+              <div class="form-group">
+                <label for="onboard-shop-name"><i class="fa-solid fa-shop"></i> Shop / Stall Name</label>
+                <input type="text" id="onboard-shop-name" placeholder="e.g. Elite Parts Center" required>
+              </div>
+
+              <div class="form-group">
+                <label for="onboard-shop-location"><i class="fa-solid fa-location-dot"></i> Shop Location / Address</label>
+                <input type="text" id="onboard-shop-location" placeholder="e.g. Stall B12, Main Boulevard, Abossey Okai" required>
+              </div>
+
+              <div class="form-group">
+                <label for="onboard-shop-specialty"><i class="fa-solid fa-screwdriver-wrench"></i> Specialization</label>
+                <select id="onboard-shop-specialty">
+                  <option value="general">General Auto Parts</option>
+                  <option value="japanese">Japanese Brands (Toyota, Honda, Nissan)</option>
+                  <option value="german">German Brands (BMW, Mercedes, VW)</option>
+                  <option value="korean">Korean Brands (Hyundai, Kia)</option>
+                  <option value="accessories">Car Accessories &amp; Gadgets</option>
+                  <option value="mixed">Mixed / All Brands</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="onboard-shop-desc"><i class="fa-solid fa-align-left"></i> Brief Shop Description</label>
+                <textarea id="onboard-shop-desc" rows="3" placeholder="Tell buyers what you sell and what makes your shop unique..."></textarea>
+              </div>
+
+            </div>
+
+            <div class="onboarding-footer">
+              <button type="button" class="btn btn-secondary" onclick="app.goToOnboardingStep(1)">
+                <i class="fa-solid fa-arrow-left"></i> Back
+              </button>
+              <button type="submit" class="btn btn-accent" id="onboard-submit-btn">
+                <i class="fa-solid fa-check"></i> Complete Setup
+              </button>
+            </div>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+    <!-- ONBOARDING SUCCESS MODAL -->
+    <div class="form-modal-overlay" id="onboard-success-modal" style="display: none; align-items: center; justify-content: center; z-index: 2000;">
+      <div class="form-modal-card" style="max-width: 450px; text-align: center; padding: 2rem;">
+        <div style="font-size: 3rem; color: var(--whatsapp-color); margin-bottom: 1rem;">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--primary-color);">Merchant Onboarded!</h3>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+          Merchant shop has been successfully registered and verified on the platform.
+        </p>
+        
+        <div style="background: var(--bg-light); border-radius: 6px; padding: 1rem; text-align: left; margin-bottom: 1.5rem; font-size: 0.85rem; border: 1px solid var(--border-color);">
+          <div style="margin-bottom: 0.5rem;"><strong>Shop Name:</strong> <span id="success-shop-name"></span></div>
+          <div style="margin-bottom: 0.5rem;"><strong>Google Email:</strong> <span id="success-shop-email"></span></div>
+          <div style="margin-bottom: 0.5rem;"><strong>Contact Phone:</strong> <span id="success-shop-phone"></span></div>
+          <div style="margin-bottom: 0.5rem;"><strong>Stall Location:</strong> <span id="success-shop-location"></span></div>
+          <div><strong>Generated Passcode:</strong> <span id="success-shop-passcode" style="font-family: monospace; font-weight: bold; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; color: #0369a1;"></span></div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <button class="btn btn-accent" id="btn-send-whatsapp-invite" style="background: var(--whatsapp-color); border-color: var(--whatsapp-color); color: #fff; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+            <i class="fa-brands fa-whatsapp"></i> Send Invite via WhatsApp
+          </button>
+          <button class="btn btn-secondary" onclick="document.getElementById('onboard-success-modal').style.display = 'none'" style="width: 100%;">
+            Close Window
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- All Inventory Full Page Overlay -->
+    <div class="all-inventory-overlay" id="all-inventory-panel" onclick="app.onOverlayClick(event, 'all-inventory-panel')" style="display:none;">
+      <div class="all-inventory-page">
+
+        <!-- Header -->
+        <div class="all-inventory-header">
+          <button class="all-inventory-back" onclick="app.closeAllInventory()" title="Go back">
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <div>
+            <h3 class="all-inventory-title">All Inventory</h3>
+            <p class="all-inventory-subtitle" id="all-inventory-count"></p>
+          </div>
+          <button class="btn btn-accent btn-sm" onclick="app.openProductForm()" style="margin-left:auto;">
+            <i class="fa-solid fa-plus"></i> Add
+          </button>
+        </div>
+
+        <!-- Full table -->
+        <div class="all-inventory-body">
+          <div class="table-wrapper">
+            <table class="inventory-table">
+              <thead>
+                <tr>
+                  <th>Product Info</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="all-inventory-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Most Viewed Products Modal -->
+    <div class="overlay-modal" id="most-viewed-modal" onclick="app.onOverlayClick(event, 'most-viewed-modal')" style="display:none;">
+      <div class="most-viewed-sheet">
+        <div class="most-viewed-header">
+          <div>
+            <h3 class="most-viewed-title"><i class="fa-solid fa-eye" style="color:var(--accent-color);"></i> Most Viewed Products</h3>
+            <p class="most-viewed-subtitle">Your products ranked by number of views</p>
+          </div>
+          <button class="form-modal-close" onclick="app.closeMostViewedModal()" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="most-viewed-list" id="most-viewed-list-body">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toasts container -->
+    <div class="toast-container" id="global-toast-container"></div>
+
+
+  </div>
+
+  <!-- Main JavaScript App -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

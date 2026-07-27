@@ -1,0 +1,14 @@
+{
+  "name": "abbossey-okai-magazine",
+  "version": "1.0.0",
+  "description": "Abossey Okai Auto Parts & Accessories E-Commerce Marketplace Platform",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  }
+}
