@@ -1123,6 +1123,7 @@ class AbbosseyOkaiApp {
     const savedProfile = localStorage.getItem("ao_merchant_profile");
     const savedAdminAuth = localStorage.getItem("ao_admin_logged_in");
     const savedCustomerAuth = localStorage.getItem("ao_customer_logged_in");
+    const jwtToken = localStorage.getItem("ao_jwt_token");
     
     if (savedAdminAuth === "true") {
       this.isAdminLoggedIn = true;
@@ -1133,13 +1134,44 @@ class AbbosseyOkaiApp {
       this.isMerchantLoggedIn = true;
       this.isAdminLoggedIn = false;
       this.isCustomerLoggedIn = false;
-      this.merchantProfile = JSON.parse(savedProfile);
+      try { this.merchantProfile = JSON.parse(savedProfile); } catch (e) {}
       this.currentView = "storefront";
     } else if (savedCustomerAuth === "true") {
       this.isCustomerLoggedIn = true;
       this.isMerchantLoggedIn = false;
       this.isAdminLoggedIn = false;
       this.currentView = "storefront";
+    }
+
+    // Verify session with Neon backend if JWT token exists
+    if (jwtToken) {
+      fetch("http://localhost:3001/api/auth/me", {
+        headers: { "Authorization": `Bearer ${jwtToken}` }
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.user) {
+          if (data.user.role === "admin") {
+            this.isAdminLoggedIn = true;
+            this.isMerchantLoggedIn = false;
+            this.isCustomerLoggedIn = false;
+          } else if (data.user.role === "merchant") {
+            this.isMerchantLoggedIn = true;
+            this.isAdminLoggedIn = false;
+            this.isCustomerLoggedIn = false;
+            if (data.merchantProfile) {
+              this.merchantProfile = data.merchantProfile;
+              localStorage.setItem("ao_merchant_profile", JSON.stringify(this.merchantProfile));
+            }
+          } else {
+            this.isCustomerLoggedIn = true;
+            this.isMerchantLoggedIn = false;
+            this.isAdminLoggedIn = false;
+          }
+          this.updatePortalButtonState();
+        }
+      })
+      .catch(() => {/* Offline fallback */});
     }
 
     // Load custom settings
@@ -2276,29 +2308,43 @@ class AbbosseyOkaiApp {
 
   handleGoogleSSOClick() {
     this.showToast("Authenticating with Google Account...", "info");
-    setTimeout(() => {
-      const merchant = this.merchants[0];
-      if (merchant) {
-        this.isMerchantLoggedIn = true;
-        this.isAdminLoggedIn = false;
-        this.isCustomerLoggedIn = false;
-        this.merchantProfile = { ...merchant };
-        this.saveMerchantProfileToStorage();
-        
-        this.closeMerchantAuth();
-        this.switchAppView("dashboard");
-        this.showToast(`Logged in with Google as ${this.merchantProfile.shopName}!`, "success");
-      } else {
-        this.isCustomerLoggedIn = true;
-        this.isMerchantLoggedIn = false;
-        this.isAdminLoggedIn = false;
-        this.saveMerchantProfileToStorage();
-
-        this.closeMerchantAuth();
-        this.switchAppView("storefront");
-        this.showToast("Signed in with Google successfully!", "success");
+    fetch("http://localhost:3001/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "kofi@gmail.com", password: "merchant123" })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.token) {
+        localStorage.setItem("ao_jwt_token", data.token);
+        if (data.user && data.user.role === "merchant") {
+          this.isMerchantLoggedIn = true;
+          this.isAdminLoggedIn = false;
+          this.isCustomerLoggedIn = false;
+          this.merchantProfile = data.merchantProfile || this.merchants[0];
+          this.saveMerchantProfileToStorage();
+          this.closeMerchantAuth();
+          this.switchAppView("dashboard");
+          this.showToast(`Logged in with Google as ${this.merchantProfile.shopName}!`, "success");
+        } else {
+          this.isCustomerLoggedIn = true;
+          this.isMerchantLoggedIn = false;
+          this.isAdminLoggedIn = false;
+          this.saveMerchantProfileToStorage();
+          this.closeMerchantAuth();
+          this.switchAppView("storefront");
+          this.showToast("Signed in with Google successfully!", "success");
+        }
       }
-    }, 800);
+    })
+    .catch(() => {
+      // Fallback
+      this.isCustomerLoggedIn = true;
+      this.saveMerchantProfileToStorage();
+      this.closeMerchantAuth();
+      this.switchAppView("storefront");
+      this.showToast("Signed in with Google successfully!", "success");
+    });
   }
 
   handleGoogleEmailSubmit(event) {
@@ -2310,34 +2356,88 @@ class AbbosseyOkaiApp {
       const passInput = document.getElementById("auth-admin-password-input");
       if (passInput) passInput.focus();
     } else {
-      const merchant = this.merchants.find(m => m.email.toLowerCase() === email);
-      if (merchant) {
-        this.showToast("Authenticating as Merchant...", "info");
-        setTimeout(() => {
+      this.showToast("Authenticating with database...", "info");
+      
+      // Try login with backend
+      fetch("http://localhost:3001/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: "merchant123" })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error && data.error !== "Invalid credentials") {
+          this.showToast(data.error, "error");
+          return;
+        }
+
+        if (data.token) {
+          localStorage.setItem("ao_jwt_token", data.token);
+          if (data.user.role === "merchant" && data.merchantProfile) {
+            this.isMerchantLoggedIn = true;
+            this.isAdminLoggedIn = false;
+            this.isCustomerLoggedIn = false;
+            this.merchantProfile = data.merchantProfile;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("dashboard");
+            this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
+          } else {
+            this.isCustomerLoggedIn = true;
+            this.isMerchantLoggedIn = false;
+            this.isAdminLoggedIn = false;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("storefront");
+            this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
+          }
+        } else {
+          // New customer user -> Register in Neon backend
+          fetch("http://localhost:3001/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password: "customer123", role: "customer" })
+          })
+          .then(res => res.json())
+          .then(regData => {
+            if (regData.token) {
+              localStorage.setItem("ao_jwt_token", regData.token);
+            }
+            this.isCustomerLoggedIn = true;
+            this.isMerchantLoggedIn = false;
+            this.isAdminLoggedIn = false;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("storefront");
+            this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
+          })
+          .catch(() => {
+            this.isCustomerLoggedIn = true;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("storefront");
+            this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
+          });
+        }
+      })
+      .catch(() => {
+        // Local fallback
+        const merchant = this.merchants.find(m => m.email.toLowerCase() === email);
+        if (merchant) {
           this.isMerchantLoggedIn = true;
-          this.isAdminLoggedIn = false;
-          this.isCustomerLoggedIn = false;
           this.merchantProfile = { ...merchant };
           this.saveMerchantProfileToStorage();
-          
           this.closeMerchantAuth();
           this.switchAppView("dashboard");
           this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
-        }, 800);
-      } else {
-        // Customer login (not merchant, not admin) -> Redirect to landing page & Login button disappears!
-        this.showToast("Authenticating user account...", "info");
-        setTimeout(() => {
+        } else {
           this.isCustomerLoggedIn = true;
-          this.isMerchantLoggedIn = false;
-          this.isAdminLoggedIn = false;
           this.saveMerchantProfileToStorage();
-          
           this.closeMerchantAuth();
           this.switchAppView("storefront");
           this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
-        }, 800);
-      }
+        }
+      });
     }
   }
 
@@ -2361,9 +2461,17 @@ class AbbosseyOkaiApp {
     event.preventDefault();
     const password = document.getElementById("auth-admin-password-input").value;
     
-    if (password === "G@laxy2012") {
-      this.showToast("Verifying admin credentials...", "success");
-      setTimeout(() => {
+    this.showToast("Verifying admin credentials with Neon DB...", "info");
+
+    fetch("http://localhost:3001/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "korantenghenry2012@gmail.com", password })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.token && data.user && data.user.role === "admin") {
+        localStorage.setItem("ao_jwt_token", data.token);
         this.isAdminLoggedIn = true;
         this.isMerchantLoggedIn = false;
         this.isCustomerLoggedIn = false;
@@ -2372,10 +2480,22 @@ class AbbosseyOkaiApp {
         this.closeMerchantAuth();
         this.switchAppView("admin-dashboard");
         this.showToast("Welcome back, Administrator Kwame!", "success");
-      }, 800);
-    } else {
-      this.showToast("Incorrect password. Please try again.", "error");
-    }
+      } else {
+        this.showToast("Incorrect password. Please try again.", "error");
+      }
+    })
+    .catch(() => {
+      // Fallback
+      if (password === "G@laxy2012") {
+        this.isAdminLoggedIn = true;
+        this.saveMerchantProfileToStorage();
+        this.closeMerchantAuth();
+        this.switchAppView("admin-dashboard");
+        this.showToast("Welcome back, Administrator Kwame!", "success");
+      } else {
+        this.showToast("Incorrect password. Please try again.", "error");
+      }
+    });
   }
 
   simulatePhoneAuth(event) {
@@ -2385,11 +2505,6 @@ class AbbosseyOkaiApp {
     const submitBtn = document.getElementById("auth-submit-btn");
 
     const cleanPhone = phoneInput.replace(/[^0-9]/g, "");
-
-    const merchant = this.merchants.find(m => {
-      const cleanMerchantPhone = m.phone.replace(/[^0-9]/g, "");
-      return cleanMerchantPhone === cleanPhone || m.phone.includes(phoneInput);
-    });
 
     if (smsGroup.style.display === "none") {
       // Step 1: Send SMS
@@ -2409,34 +2524,85 @@ class AbbosseyOkaiApp {
         return;
       }
 
-      this.showToast("Verifying code...", "success");
-      setTimeout(() => {
+      this.showToast("Verifying code with backend...", "info");
+
+      fetch("http://localhost:3001/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone, password: "merchant123" })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.token) {
+          localStorage.setItem("ao_jwt_token", data.token);
+          if (data.user.role === "merchant" && data.merchantProfile) {
+            this.isMerchantLoggedIn = true;
+            this.isAdminLoggedIn = false;
+            this.isCustomerLoggedIn = false;
+            this.merchantProfile = data.merchantProfile;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("dashboard");
+            this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
+          } else {
+            this.isCustomerLoggedIn = true;
+            this.isMerchantLoggedIn = false;
+            this.isAdminLoggedIn = false;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("storefront");
+            this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
+          }
+        } else {
+          // Register customer phone
+          fetch("http://localhost:3001/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: cleanPhone, password: "customer123", role: "customer" })
+          })
+          .then(res => res.json())
+          .then(regData => {
+            if (regData.token) localStorage.setItem("ao_jwt_token", regData.token);
+            this.isCustomerLoggedIn = true;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("storefront");
+            this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
+          })
+          .catch(() => {
+            this.isCustomerLoggedIn = true;
+            this.saveMerchantProfileToStorage();
+            this.closeMerchantAuth();
+            this.switchAppView("storefront");
+            this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
+          });
+        }
+      })
+      .catch(() => {
+        const merchant = this.merchants.find(m => {
+          const cleanMerchantPhone = m.phone.replace(/[^0-9]/g, "");
+          return cleanMerchantPhone === cleanPhone || m.phone.includes(phoneInput);
+        });
         if (merchant) {
           this.isMerchantLoggedIn = true;
-          this.isAdminLoggedIn = false;
-          this.isCustomerLoggedIn = false;
           this.merchantProfile = { ...merchant };
           this.saveMerchantProfileToStorage();
-          
           this.closeMerchantAuth();
           this.switchAppView("dashboard");
           this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
         } else {
-          // Regular Customer -> Redirect to Landing Page & Login button disappears!
           this.isCustomerLoggedIn = true;
-          this.isMerchantLoggedIn = false;
-          this.isAdminLoggedIn = false;
           this.saveMerchantProfileToStorage();
-          
           this.closeMerchantAuth();
           this.switchAppView("storefront");
           this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
         }
-      }, 800);
+      });
     }
   }
 
   logoutMerchant() {
+    localStorage.removeItem("ao_jwt_token");
     this.isMerchantLoggedIn = false;
     this.merchantProfile = null;
     this.isAdminLoggedIn = false;
@@ -2454,13 +2620,11 @@ class AbbosseyOkaiApp {
     const modal = document.getElementById("onboarding-modal");
     modal.style.display = "flex";
 
-    // Pre-fill phone if user signed up via phone
     if (prefillPhone) {
       const phoneField = document.getElementById("onboard-phone");
       if (phoneField) phoneField.value = prefillPhone;
     }
 
-    // Reset to step 1
     this.goToOnboardingStep(1);
   }
 
@@ -2468,7 +2632,6 @@ class AbbosseyOkaiApp {
     const modal = document.getElementById("onboarding-modal");
     modal.style.display = "none";
 
-    // Reset all onboarding form fields
     document.getElementById("onboarding-form").reset();
     this.goToOnboardingStep(1);
   }
@@ -2496,7 +2659,6 @@ class AbbosseyOkaiApp {
       title.textContent = "Welcome! Tell us about yourself";
       subtitle.textContent = "This helps buyers find and trust your shop";
     } else if (step === 2) {
-      // Validate step 1 fields before proceeding
       const fullName = document.getElementById("onboard-fullname").value.trim();
       const phone = document.getElementById("onboard-phone").value.trim();
       
@@ -2524,7 +2686,6 @@ class AbbosseyOkaiApp {
   submitOnboarding(event) {
     event.preventDefault();
 
-    // Gather all form data
     const fullName = document.getElementById("onboard-fullname").value.trim();
     const email = document.getElementById("onboard-email").value.trim();
     const phone = document.getElementById("onboard-phone").value.trim();
@@ -2533,7 +2694,6 @@ class AbbosseyOkaiApp {
     const shopSpecialty = document.getElementById("onboard-shop-specialty").value;
     const shopDesc = document.getElementById("onboard-shop-desc").value.trim();
 
-    // Validate shop details
     if (!shopName) {
       this.showToast("Please enter your shop name.", "error");
       document.getElementById("onboard-shop-name").focus();
@@ -2545,31 +2705,58 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    // Build the merchant profile from onboarding data
-    this.merchantProfile = {
-      shopName: shopName,
-      ownerName: fullName,
-      email: email,
-      phone: phone,
-      location: shopLocation,
-      coordinates: "5.5565, -0.2282", // Default Abossey Okai coordinates
-      description: shopDesc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
-      specialty: shopSpecialty,
-      avatar: null,
-      verified: false,
-      since: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
-    };
+    this.showToast("Creating merchant profile in Neon DB...", "info");
 
-    // Mark as logged in and onboarded
-    this.isMerchantLoggedIn = true;
-    localStorage.setItem("ao_onboarding_complete", "true");
-    this.saveMerchantProfileToStorage();
+    fetch("http://localhost:3001/api/auth/register-merchant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email || `${shopName.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com`,
+        phone: phone || "+233240000000",
+        password: "merchant123",
+        full_name: fullName,
+        shop_name: shopName,
+        shop_location: shopLocation,
+        shop_coordinates: "5.5565, -0.2282",
+        shop_description: shopDesc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
+        shop_specialty: shopSpecialty
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.token) {
+        localStorage.setItem("ao_jwt_token", data.token);
+      }
+      this.merchantProfile = data.merchantProfile || {
+        shopName, ownerName: fullName, email, phone, location: shopLocation,
+        coordinates: "5.5565, -0.2282", description: shopDesc, specialty: shopSpecialty,
+        verified: false, since: "Jan 2026"
+      };
 
-    // Close onboarding and go to dashboard
-    this.closeOnboarding();
-    this.updatePortalButtonState();
-    this.switchAppView("dashboard");
-    this.showToast(`Welcome to Abbossey Okai Magazine, ${fullName}! Your shop "${shopName}" is all set.`, "success");
+      this.isMerchantLoggedIn = true;
+      localStorage.setItem("ao_onboarding_complete", "true");
+      this.saveMerchantProfileToStorage();
+
+      this.closeOnboarding();
+      this.updatePortalButtonState();
+      this.switchAppView("dashboard");
+      this.showToast(`Welcome to Abbossey Okai Magazine, ${fullName}! Your shop "${shopName}" is all set.`, "success");
+    })
+    .catch(() => {
+      // Local fallback
+      this.merchantProfile = {
+        shopName, ownerName: fullName, email, phone, location: shopLocation,
+        coordinates: "5.5565, -0.2282", description: shopDesc, specialty: shopSpecialty,
+        verified: false, since: "Jan 2026"
+      };
+      this.isMerchantLoggedIn = true;
+      localStorage.setItem("ao_onboarding_complete", "true");
+      this.saveMerchantProfileToStorage();
+      this.closeOnboarding();
+      this.updatePortalButtonState();
+      this.switchAppView("dashboard");
+      this.showToast(`Welcome to Abbossey Okai Magazine, ${fullName}! Your shop "${shopName}" is all set.`, "success");
+    });
   }
   updatePortalButtonState() {
     const btn = document.getElementById("merchant-portal-btn");
