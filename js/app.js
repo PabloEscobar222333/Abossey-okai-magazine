@@ -152,448 +152,7 @@ let CAR_ACCESSORY_CATEGORIES = JSON.parse(localStorage.getItem("ao_accessory_cat
   "Safety"
 ];
 
-// Initial Seed Listings for Marketplace
-const DEFAULT_PRODUCTS = [
-  {
-    id: "prod-1",
-    mainType: "parts",
-    name: "Ceramic Front Brake Pads Kit",
-    brand: "Akebono",
-    category: "Brake System",
-    condition: "New",
-    price: 380,
-    stock: "In Stock",
-    status: "Live",
-    views: 142,
-    images: [],
-    compatibility: [
-      { make: "Toyota", model: "Corolla", years: "2015-2022" },
-      { make: "Toyota", model: "Camry", years: "2016-2021" }
-    ],
-    merchant: {
-      shopName: "Kofi Auto Spares",
-      phone: "+233240123456",
-      location: "Stall A12, Section 3, Abossey Okai",
-      coordinates: "5.5562, -0.2284",
-      verified: true,
-      since: "Jan 2022"
-    },
-    description: "Premium Akebono ceramic brake pads offering zero noise, low dust, and exceptional stopping power. Directly imported from USA. Certified fitment for 2015-2022 Corolla models."
-  },
-  {
-    id: "prod-2",
-    mainType: "parts",
-    name: "Full Set Shock Absorbers (Front & Rear)",
-    brand: "KYB Excel-G",
-    category: "Shock Absorbers",
-    condition: "New",
-    price: 1850,
-    stock: "In Stock",
-    status: "Live",
-    views: 98,
-    images: [],
-    compatibility: [
-      { make: "Honda", model: "Civic", years: "2012-2018" },
-      { make: "Honda", model: "Accord", years: "2013-2019" }
-    ],
-    merchant: {
-      shopName: "Abossey Okai Shocks Hub",
-      phone: "+233249998887",
-      location: "Near Ghana Commercial Bank, Abossey Okai",
-      coordinates: "5.5558, -0.2291",
-      verified: true,
-      since: "Mar 2023"
-    },
-    description: "Original KYB Excel-G nitrogen gas charged shocks. Designed to restore your Honda's original handling and ride control. Sold as a complete set of 4."
-  },
-  {
-    id: "prod-3",
-    mainType: "parts",
-    name: "Replacement Alternator 12V 90A",
-    brand: "Denso",
-    category: "Electrical",
-    condition: "Refurbished",
-    price: 750,
-    stock: "In Stock",
-    status: "Live",
-    views: 67,
-    images: [],
-    compatibility: [
-      { make: "Nissan", model: "Almera", years: "2010-2016" }
-    ],
-    merchant: {
-      shopName: "Electricals Junction Store",
-      phone: "+233551234567",
-      location: "Stall D45, Electricals Lane, Abossey Okai",
-      coordinates: "5.5570, -0.2275",
-      verified: false,
-      since: "Nov 2024"
-    },
-    description: "Fully remanufactured original Denso alternator. Bench-tested with new brushes and bearings. Guaranteed stable charging output."
-  },
-  {
-    id: "prod-4",
-    mainType: "accessories",
-    name: "7-Inch Android Touchscreen Car Stereo",
-    brand: "Pioneer",
-    category: "Audio",
-    condition: "New",
-    price: 1200,
-    stock: "In Stock",
-    status: "Live",
-    views: 203,
-    images: [],
-    compatibility: "Universal Fit",
-    merchant: {
-      shopName: "Sound Force Accessories",
-      phone: "+233201112222",
-      location: "Stall B9, High Street Area, Abossey Okai",
-      coordinates: "5.5550, -0.2299",
-      verified: true,
-      since: "Jul 2021"
-    },
-    description: "Features double-din design, built-in GPS, Bluetooth, Apple CarPlay, and Android Auto. Supports rear view camera input and steering wheel controllers."
-  },
-  {
-    id: "prod-5",
-    mainType: "accessories",
-    name: "Orthopedic Memory Foam Seat Cushion",
-    brand: "Sparco",
-    category: "Interior",
-    condition: "New",
-    price: 280,
-    stock: "In Stock",
-    status: "Live",
-    views: 55,
-    images: [],
-    compatibility: "Universal Fit",
-    merchant: {
-      shopName: "Sound Force Accessories",
-      phone: "+233201112222",
-      location: "Stall B9, High Street Area, Abossey Okai",
-      coordinates: "5.5550, -0.2299",
-      verified: true,
-      since: "Jul 2021"
-    },
-    description: "Ergonomic wedge shape relieves tailbone pain and improves posture during long traffic commutes. Breathable mesh cover is washable."
-  },
-  {
-    id: "prod-6",
-    mainType: "accessories",
-    name: "Heavy Duty Waterproof Car Cover",
-    brand: "MotorTrend",
-    category: "Exterior",
-    condition: "New",
-    price: 350,
-    stock: "Out of Stock",
-    status: "Live",
-    views: 31,
-    images: [],
-    compatibility: "Universal Fit",
-    merchant: {
-      shopName: "Akwasi Auto Accessories",
-      phone: "+233245554443",
-      location: "Opposite Police Container, Abossey Okai",
-      coordinates: "5.5566, -0.2268",
-      verified: false,
-      since: "May 2023"
-    },
-    description: "Multi-layered breathable fabric protects your vehicle from dust, rain, and heavy Ghana sunshine. Fitted with wind straps and elastic hems."
-  },
-  {
-    id: "prod-7",
-    mainType: "parts",
-    name: "1.8L Engine Head Gasket Kit",
-    brand: "Fel-Pro",
-    category: "Engine Parts",
-    condition: "New",
-    price: 450,
-    stock: "In Stock",
-    status: "Live",
-    views: 79,
-    images: [],
-    compatibility: [
-      { make: "Toyota", model: "Corolla", years: "2009-2016" }
-    ],
-    merchant: {
-      shopName: "Kofi Auto Spares",
-      phone: "+233240123456",
-      location: "Stall A12, Section 3, Abossey Okai",
-      coordinates: "5.5562, -0.2284",
-      verified: true,
-      since: "Jan 2022"
-    },
-    description: "Premium gasket kit provides superior sealing on uneven head surfaces. Includes valve stem seals, intake, and exhaust gaskets."
-  },
-  {
-    id: "prod-8",
-    mainType: "parts",
-    name: "Front Radiator Assembly",
-    brand: "KOYORAD",
-    category: "Radiator",
-    condition: "Used",
-    price: 850,
-    stock: "In Stock",
-    status: "Live",
-    views: 44,
-    images: [],
-    compatibility: [
-      { make: "Hyundai", model: "Tucson", years: "2015-2020" },
-      { make: "Kia", model: "Sportage", years: "2016-2021" }
-    ],
-    merchant: {
-      shopName: "Ofori Cooling Systems",
-      phone: "+233243332221",
-      location: "Stall F5, Radiator Lane, Abossey Okai",
-      coordinates: "5.5559, -0.2280",
-      verified: true,
-      since: "Sep 2020"
-    },
-    description: "Genuinely imported salvage (Tokunbo) radiator in excellent condition. Direct plug-and-play fitment with core pressure tested."
-  },
-
-  // ─── Elite Parts Center mock listings ───────────────────────────────────────
-  {
-    id: "prod-epc-1",
-    mainType: "parts",
-    name: "Genuine Bosch Fuel Injector Set (4 pcs)",
-    brand: "Bosch",
-    category: "Engine Parts",
-    condition: "New",
-    price: 1450,
-    stock: "In Stock",
-    status: "Live",
-    views: 317,
-    images: [],
-    compatibility: [
-      { make: "BMW", model: "3 Series", years: "2012-2019" },
-      { make: "BMW", model: "5 Series", years: "2013-2020" }
-    ],
-    merchant: {
-      shopName: "Elite Parts Center",
-      phone: "+233244111222",
-      location: "Stall E18, Main Boulevard, Abossey Okai",
-      coordinates: "5.5565, -0.2282",
-      verified: true,
-      since: "Jun 2023"
-    },
-    description: "Original Bosch direct-injection injectors for BMW petrol engines. Ensures precise fuel atomisation, improved fuel economy, and smoother idle. Sold as a set of 4."
-  },
-  {
-    id: "prod-epc-2",
-    mainType: "parts",
-    name: "Mercedes-Benz Air Suspension Compressor",
-    brand: "Arnott",
-    category: "Suspension & Steering",
-    condition: "New",
-    price: 3200,
-    stock: "In Stock",
-    status: "Live",
-    views: 189,
-    images: [],
-    compatibility: [
-      { make: "Mercedes", model: "E-Class", years: "2010-2016" },
-      { make: "Mercedes", model: "S-Class", years: "2006-2013" }
-    ],
-    merchant: {
-      shopName: "Elite Parts Center",
-      phone: "+233244111222",
-      location: "Stall E18, Main Boulevard, Abossey Okai",
-      coordinates: "5.5565, -0.2282",
-      verified: true,
-      since: "Jun 2023"
-    },
-    description: "OEM-quality air suspension compressor pump. Restores proper ride height and comfort on air-sprung Mercedes models. Includes mounting kit and relay."
-  },
-  {
-    id: "prod-epc-3",
-    mainType: "parts",
-    name: "Toyota Land Cruiser Transfer Case",
-    brand: "Aisin",
-    category: "Transmission",
-    condition: "Used",
-    price: 4800,
-    stock: "In Stock",
-    status: "Live",
-    views: 142,
-    images: [],
-    compatibility: [
-      { make: "Toyota", model: "Land Cruiser", years: "2008-2015" }
-    ],
-    merchant: {
-      shopName: "Elite Parts Center",
-      phone: "+233244111222",
-      location: "Stall E18, Main Boulevard, Abossey Okai",
-      coordinates: "5.5565, -0.2282",
-      verified: true,
-      since: "Jun 2023"
-    },
-    description: "Low-mileage Tokunbo transfer case from a UK-spec Land Cruiser. Tested and confirmed 4WD engagement in all modes. Comes with a 30-day functionality guarantee."
-  },
-  {
-    id: "prod-epc-4",
-    mainType: "parts",
-    name: "BMW N52 Engine Valve Cover Gasket Kit",
-    brand: "Elring",
-    category: "Engine Parts",
-    condition: "New",
-    price: 620,
-    stock: "In Stock",
-    status: "Live",
-    views: 205,
-    images: [],
-    compatibility: [
-      { make: "BMW", model: "3 Series", years: "2006-2012" },
-      { make: "BMW", model: "X3", years: "2007-2013" }
-    ],
-    merchant: {
-      shopName: "Elite Parts Center",
-      phone: "+233244111222",
-      location: "Stall E18, Main Boulevard, Abossey Okai",
-      coordinates: "5.5565, -0.2282",
-      verified: true,
-      since: "Jun 2023"
-    },
-    description: "German-made Elring gasket kit for the BMW N52 6-cylinder engine. Stops oil leaks at the valve cover completely. Includes all O-rings, spark plug seals, and bolts."
-  },
-  {
-    id: "prod-epc-5",
-    mainType: "accessories",
-    name: "Premium Leather Steering Wheel Cover",
-    brand: "Sparco",
-    category: "Steering Wheel",
-    condition: "New",
-    price: 280,
-    stock: "In Stock",
-    status: "Live",
-    views: 98,
-    images: [],
-    compatibility: "Universal Fit",
-    merchant: {
-      shopName: "Elite Parts Center",
-      phone: "+233244111222",
-      location: "Stall E18, Main Boulevard, Abossey Okai",
-      coordinates: "5.5565, -0.2282",
-      verified: true,
-      since: "Jun 2023"
-    },
-    description: "Genuine perforated leather with non-slip grip stitching. Compatible with steering wheels 37–39 cm in diameter. Enhances driving comfort and interior aesthetics."
-  },
-  {
-    id: "prod-epc-6",
-    mainType: "parts",
-    name: "Brembo Front Brake Disc Set",
-    brand: "Brembo",
-    category: "Brake System",
-    condition: "New",
-    price: 2100,
-    stock: "Out of Stock",
-    status: "Live",
-    views: 76,
-    images: [],
-    compatibility: [
-      { make: "Mercedes", model: "C-Class", years: "2015-2021" },
-      { make: "Mercedes", model: "GLC", years: "2016-2022" }
-    ],
-    merchant: {
-      shopName: "Elite Parts Center",
-      phone: "+233244111222",
-      location: "Stall E18, Main Boulevard, Abossey Okai",
-      coordinates: "5.5565, -0.2282",
-      verified: true,
-      since: "Jun 2023"
-    },
-    description: "Italian-engineered Brembo vented brake discs for Mercedes AMG-Line models. Exceptional fade resistance under heavy braking. Sold as a pair (both front wheels)."
-  },
-  {
-    id: "prod-9",
-    mainType: "parts",
-    name: "Front Lower Ball Joint Kit",
-    brand: "Moog",
-    category: "Ball Joints",
-    condition: "New",
-    price: 450,
-    stock: "In Stock",
-    status: "Live",
-    views: 89,
-    images: [],
-    compatibility: [
-      { make: "Toyota", model: "Corolla", years: "2012-2020" },
-      { make: "Honda", model: "Civic", years: "2013-2021" }
-    ],
-    merchant: {
-      shopName: "Kofi Auto Spares",
-      phone: "+233240123456",
-      location: "Stall A12, Section 3, Abossey Okai",
-      coordinates: "5.5562, -0.2284",
-      verified: true,
-      since: "Jan 2022"
-    },
-    description: "Premium heavy-duty ball joints from Moog. Built with hardened steel and greasable design for long-lasting durability and smooth steering response."
-  },
-  {
-    id: "prod-10",
-    mainType: "parts",
-    name: "Premium All-Season Windshield Wipers (Pair)",
-    brand: "Bosch ICON",
-    category: "Wipers",
-    condition: "New",
-    price: 180,
-    stock: "In Stock",
-    status: "Live",
-    views: 124,
-    images: [],
-    compatibility: "Universal Fit",
-    merchant: {
-      shopName: "Electricals Junction Store",
-      phone: "+233551234567",
-      location: "Stall D45, Electricals Lane, Abossey Okai",
-      coordinates: "5.5570, -0.2275",
-      verified: false,
-      since: "Nov 2024"
-    },
-    description: "Bosch ICON beam wiper blades with clearmax 365 rubber technology. Provides clean, streak-free visibility under all weather conditions."
-  },
-  {
-    id: "prod-11",
-    mainType: "parts",
-    name: "A/C Condenser Assembly",
-    brand: "Denso",
-    category: "Condenser",
-    condition: "New",
-    price: 950,
-    stock: "In Stock",
-    status: "Live",
-    views: 56,
-    images: [],
-    compatibility: [
-      { make: "Hyundai", model: "Elantra", years: "2016-2022" },
-      { make: "Kia", model: "Cerato", years: "2017-2023" }
-    ],
-    merchant: {
-      shopName: "Ofori Cooling Systems",
-      phone: "+233243332221",
-      location: "Stall F5, Radiator Lane, Abossey Okai",
-      coordinates: "5.5559, -0.2280",
-      verified: true,
-      since: "Sep 2020"
-    },
-    description: "Original Denso replacement A/C condenser. Manufactured with premium aluminum construction for efficient heat transfer and optimal cooling system performance."
-  }
-];
-
-
-// Default Profile for Simulating Merchant Center login
-const DEFAULT_MERCHANT_PROFILE = {
-  shopName: "Elite Parts Center",
-  phone: "+233244111222",
-  location: "Stall E18, Main Boulevard, Abossey Okai",
-  coordinates: "5.5565, -0.2282",
-  description: "Direct importer of genuine spare parts and luxury car accessories. Specialist in German and Japanese brands.",
-  avatar: null,
-  verified: true,
-  since: "Jun 2023"
-};
+// Dynamic data loaded live from Neon PostgreSQL Backend API (/api/*)
 
 class AbbosseyOkaiApp {
   constructor() {
@@ -702,6 +261,7 @@ class AbbosseyOkaiApp {
 
   init() {
     this.loadPersistedData();
+    this.loadBackendData();
     this.setupPwaEvents();
     this.bindDomElements();
     this.populateSelectOptions();
@@ -1042,81 +602,112 @@ class AbbosseyOkaiApp {
     }, true);
   }
 
-  // Load from local storage or use defaults
-  loadPersistedData() {
-    // 1. Seed and load merchants roster first
-    const savedMerchants = localStorage.getItem("ao_marketplace_merchants");
-    if (savedMerchants) {
-      this.merchants = JSON.parse(savedMerchants);
-    } else {
-      // Build unique merchants list from DEFAULT_PRODUCTS
-      const uniqueMerchantsMap = {};
-      const emailMap = {
-        "Kofi Auto Spares": "kofi@gmail.com",
-        "Abossey Okai Shocks Hub": "hub@gmail.com",
-        "Electricals Junction Store": "junction@gmail.com",
-        "Sound Force Accessories": "soundforce@gmail.com",
-        "Akwasi Auto Accessories": "akwasi@gmail.com",
-        "Ofori Cooling Systems": "ofori@gmail.com",
-        "Elite Parts Center": "eliteparts@gmail.com"
-      };
-      
-      DEFAULT_PRODUCTS.forEach(p => {
-        const m = p.merchant;
-        if (m && !uniqueMerchantsMap[m.shopName]) {
-          uniqueMerchantsMap[m.shopName] = {
-            shopName: m.shopName,
-            phone: m.phone,
-            email: emailMap[m.shopName] || (m.shopName.toLowerCase().replace(/[^a-z0-9]/g, "") + "@gmail.com"),
-            location: m.location,
-            coordinates: m.coordinates,
-            description: p.description || `${m.shopName} — Premium Abossey Okai Dealer.`,
-            specialty: p.mainType === "parts" ? "japanese" : "accessories",
-            avatar: null,
-            verified: true,
-            status: "Active",
-            since: m.since || "Jan 2022"
-          };
-        }
-      });
-      this.merchants = Object.values(uniqueMerchantsMap);
-      localStorage.setItem("ao_marketplace_merchants", JSON.stringify(this.merchants));
+  normalizeProduct(p) {
+    let comp = "Universal Fit";
+    if (Array.isArray(p.compatibility) && p.compatibility.length > 0) {
+      comp = p.compatibility;
+    } else if (p.compatibility_text) {
+      comp = p.compatibility_text;
     }
 
-    // 2. Load products and synchronize verification state
+    return {
+      id: p.id,
+      mainType: p.main_type || p.mainType || "parts",
+      name: p.name,
+      brand: p.brand || "",
+      category: p.category || "",
+      condition: p.condition || "New",
+      price: typeof p.price === "number" ? p.price : parseFloat(p.price || 0),
+      stock: p.stock || "In Stock",
+      status: p.status || "Live",
+      views: p.views || 0,
+      images: p.images || [],
+      compatibility: comp,
+      merchant: p.merchant || {
+        shopName: p.merchant_shop_name || "Abossey Okai Merchant",
+        phone: p.merchant_phone || "+233240000000",
+        location: p.merchant_location || "Abossey Okai, Accra",
+        coordinates: p.merchant_coordinates || "5.5565, -0.2282",
+        verified: p.merchant_verified ?? true,
+        since: p.merchant_since || "Jan 2022"
+      },
+      description: p.description || ""
+    };
+  }
+
+  async loadBackendData() {
+    try {
+      // 1. Fetch live products from Neon backend API
+      const resProducts = await fetch("http://localhost:3001/api/products?limit=100");
+      if (resProducts.ok) {
+        const data = await resProducts.json();
+        if (Array.isArray(data.products) && data.products.length > 0) {
+          this.products = data.products.map(p => this.normalizeProduct(p));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load products from backend API:", e);
+    }
+
+    try {
+      // 2. Fetch live merchants from Neon backend API
+      const resMerchants = await fetch("http://localhost:3001/api/merchants");
+      if (resMerchants.ok) {
+        const data = await resMerchants.json();
+        if (Array.isArray(data.merchants) && data.merchants.length > 0) {
+          this.merchants = data.merchants.map(m => ({
+            id: m.id,
+            shopName: m.shop_name,
+            phone: m.phone,
+            email: m.email,
+            location: m.location,
+            coordinates: m.coordinates || "5.5565, -0.2282",
+            description: m.description,
+            specialty: m.specialty || "japanese",
+            verified: m.verified,
+            status: m.status,
+            since: m.since || "Jan 2022"
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load merchants from backend API:", e);
+    }
+
+    try {
+      // 3. Fetch live car brands from Neon backend API
+      const resBrands = await fetch("http://localhost:3001/api/brands?type=vehicle");
+      if (resBrands.ok) {
+        const data = await resBrands.json();
+        if (Array.isArray(data.brands) && data.brands.length > 0) {
+          this.allBrandsData = data.brands.map(b => ({
+            id: b.slug || b.name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+            name: b.name,
+            logo: b.logo || `${b.slug || b.name.toLowerCase()}.png`,
+            category: b.category || "asian"
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load brands from backend API:", e);
+    }
+
+    // Re-render UI views with real database records
+    this.renderCatalog();
+    this.renderBrandFilters();
+    this.populateSelectOptions();
+  }
+
+  // Load persisted session state
+  loadPersistedData() {
+    const savedMerchants = localStorage.getItem("ao_marketplace_merchants");
+    if (savedMerchants) {
+      try { this.merchants = JSON.parse(savedMerchants); } catch (e) {}
+    }
+
     const savedProducts = localStorage.getItem("ao_marketplace_products");
     if (savedProducts) {
-      const parsed = JSON.parse(savedProducts);
-      // Synchronize verification state with merchants roster
-      parsed.forEach(p => {
-        if (p.merchant) {
-          const m = this.merchants.find(x => x.shopName === p.merchant.shopName);
-          p.merchant.verified = m ? m.verified : true;
-        }
-      });
-      const hasEpcProducts = parsed.some(p => p.id && p.id.startsWith("prod-epc-"));
-      if (hasEpcProducts) {
-        this.products = parsed;
-      } else {
-        const epcProducts = DEFAULT_PRODUCTS.filter(p => p.id && p.id.startsWith("prod-epc-"));
-        this.products = [...parsed, ...epcProducts];
-        this.products.forEach(p => {
-          if (p.merchant) {
-            const m = this.merchants.find(x => x.shopName === p.merchant.shopName);
-            p.merchant.verified = m ? m.verified : true;
-          }
-        });
-        this.saveProductsToStorage();
-      }
-    } else {
-      this.products = [...DEFAULT_PRODUCTS];
-      this.products.forEach(p => {
-        if (p.merchant) {
-          const m = this.merchants.find(x => x.shopName === p.merchant.shopName);
-          p.merchant.verified = m ? m.verified : true;
-        }
-      });
-      this.saveProductsToStorage();
+      try { this.products = JSON.parse(savedProducts); } catch (e) {}
     }
 
     const savedAuth = localStorage.getItem("ao_merchant_logged_in");
@@ -1174,7 +765,6 @@ class AbbosseyOkaiApp {
       .catch(() => {/* Offline fallback */});
     }
 
-    // Load custom settings
     const savedPremod = localStorage.getItem("ao_admin_premoderation");
     this.premoderation = savedPremod === "true";
 
@@ -1184,135 +774,7 @@ class AbbosseyOkaiApp {
       showInstallBtn: true
     };
 
-    this.brands = JSON.parse(localStorage.getItem("ao_brands_list")) || ["Toyota", "Honda", "Nissan", "Hyundai", "Kia", "Ford", "BMW", "Mercedes", "Lexus", "Mitsubishi", "Suzuki", "Volkswagen", "Land Rover", "Audi", "Akebono", "Denso", "KYB", "Bosch", "Brembo", "Valvoline"];
     this.adminListingsFilter = "all";
-    this.syncCategoryUpgrades();
-  }
-
-  syncCategoryUpgrades() {
-    // 1. Ensure all new categories are in SPARE_PART_CATEGORIES & localStorage
-    const newCats = [
-      "Tires & Wheels", "Batteries", "Engine Oil", "Brake System", "Lighting",
-      "Suspension", "Filters", "Radiator", "Shock Absorbers", "Ball Joints",
-      "Steering Wheel", "Wipers", "Condenser"
-    ];
-    let updatedCats = false;
-    newCats.forEach(c => {
-      if (!SPARE_PART_CATEGORIES.includes(c)) {
-        SPARE_PART_CATEGORIES.push(c);
-        updatedCats = true;
-      }
-    });
-    if (updatedCats) {
-      localStorage.setItem("ao_parts_categories", JSON.stringify(SPARE_PART_CATEGORIES));
-    }
-
-    // 2. Ensure new default products are added if not present
-    const newProductsToAdd = [
-      {
-        id: "prod-9",
-        mainType: "parts",
-        name: "Front Lower Ball Joint Kit",
-        brand: "Moog",
-        category: "Ball Joints",
-        condition: "New",
-        price: 450,
-        stock: "In Stock",
-        status: "Live",
-        views: 89,
-        images: [],
-        compatibility: [
-          { make: "Toyota", model: "Corolla", years: "2012-2020" },
-          { make: "Honda", model: "Civic", years: "2013-2021" }
-        ],
-        merchant: {
-          shopName: "Kofi Auto Spares",
-          phone: "+233240123456",
-          location: "Stall A12, Section 3, Abossey Okai",
-          coordinates: "5.5562, -0.2284",
-          verified: true,
-          since: "Jan 2022"
-        },
-        description: "Premium heavy-duty ball joints from Moog. Built with hardened steel and greasable design for long-lasting durability and smooth steering response."
-      },
-      {
-        id: "prod-10",
-        mainType: "parts",
-        name: "Premium All-Season Windshield Wipers (Pair)",
-        brand: "Bosch ICON",
-        category: "Wipers",
-        condition: "New",
-        price: 180,
-        stock: "In Stock",
-        status: "Live",
-        views: 124,
-        images: [],
-        compatibility: "Universal Fit",
-        merchant: {
-          shopName: "Electricals Junction Store",
-          phone: "+233551234567",
-          location: "Stall D45, Electricals Lane, Abossey Okai",
-          coordinates: "5.5570, -0.2275",
-          verified: false,
-          since: "Nov 2024"
-        },
-        description: "Bosch ICON beam wiper blades with clearmax 365 rubber technology. Provides clean, streak-free visibility under all weather conditions."
-      },
-      {
-        id: "prod-11",
-        mainType: "parts",
-        name: "A/C Condenser Assembly",
-        brand: "Denso",
-        category: "Condenser",
-        condition: "New",
-        price: 950,
-        stock: "In Stock",
-        status: "Live",
-        views: 56,
-        images: [],
-        compatibility: [
-          { make: "Hyundai", model: "Elantra", years: "2016-2022" },
-          { make: "Kia", model: "Cerato", years: "2017-2023" }
-        ],
-        merchant: {
-          shopName: "Ofori Cooling Systems",
-          phone: "+233243332221",
-          location: "Stall F5, Radiator Lane, Abossey Okai",
-          coordinates: "5.5559, -0.2280",
-          verified: true,
-          since: "Sep 2020"
-        },
-        description: "Original Denso replacement A/C condenser. Manufactured with premium aluminum construction for efficient heat transfer and optimal cooling system performance."
-      }
-    ];
-
-    let updatedProducts = false;
-    newProductsToAdd.forEach(np => {
-      if (!this.products.some(p => p.id === np.id)) {
-        this.products.push(np);
-        updatedProducts = true;
-      }
-    });
-
-    // 3. Upgrade categories for existing seed products in the active products list
-    this.products.forEach(p => {
-      if (p.id === "prod-2" && p.category !== "Shock Absorbers") {
-        p.category = "Shock Absorbers";
-        updatedProducts = true;
-      }
-      if (p.id === "prod-8" && p.category !== "Radiator") {
-        p.category = "Radiator";
-        updatedProducts = true;
-      }
-      if (p.id === "prod-epc-5" && p.category !== "Steering Wheel") {
-        p.category = "Steering Wheel";
-        updatedProducts = true;
-      }
-    });
-
-    if (updatedProducts) {
-      this.saveProductsToStorage();
-    }
   }
 
   saveProductsToStorage() {
