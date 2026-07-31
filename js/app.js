@@ -636,12 +636,19 @@ class AbbosseyOkaiApp {
   }
 
   async loadBackendData() {
+    // Clear legacy mock localStorage caches so browser storage never overrides Neon DB state
+    try {
+      localStorage.removeItem("ao_marketplace_products");
+      localStorage.removeItem("ao_marketplace_merchants");
+    } catch (e) {}
+
     try {
       // 1. Fetch live products from Neon backend API
-      const resProducts = await fetch("http://localhost:3001/api/products?limit=100");
+      const statusParam = (this.isAdminLoggedIn || this.isMerchantLoggedIn) ? "?status=all&limit=200" : "?status=Live&limit=100";
+      const resProducts = await fetch(`http://localhost:3001/api/products${statusParam}`);
       if (resProducts.ok) {
         const data = await resProducts.json();
-        if (Array.isArray(data.products) && data.products.length > 0) {
+        if (Array.isArray(data.products)) {
           this.products = data.products.map(p => this.normalizeProduct(p));
         }
       }
@@ -696,19 +703,22 @@ class AbbosseyOkaiApp {
     this.renderCatalog();
     this.renderBrandFilters();
     this.populateSelectOptions();
+    if (this.isMerchantLoggedIn) {
+      this.renderMerchantInventory();
+      this.renderMerchantMetrics();
+    } else if (this.isAdminLoggedIn) {
+      this.renderAdminListings();
+      this.renderAdminOverview();
+    }
   }
 
   // Load persisted session state
   loadPersistedData() {
-    const savedMerchants = localStorage.getItem("ao_marketplace_merchants");
-    if (savedMerchants) {
-      try { this.merchants = JSON.parse(savedMerchants); } catch (e) {}
-    }
-
-    const savedProducts = localStorage.getItem("ao_marketplace_products");
-    if (savedProducts) {
-      try { this.products = JSON.parse(savedProducts); } catch (e) {}
-    }
+    // Purge legacy mock product caches
+    try {
+      localStorage.removeItem("ao_marketplace_products");
+      localStorage.removeItem("ao_marketplace_merchants");
+    } catch (e) {}
 
     const savedAuth = localStorage.getItem("ao_merchant_logged_in");
     const savedProfile = localStorage.getItem("ao_merchant_profile");
@@ -3020,8 +3030,8 @@ class AbbosseyOkaiApp {
     });
   }
 
-  // Publish Form Submission
-  submitProductForm(event) {
+  // Publish Form Submission (Connected to Express + Neon PostgreSQL API)
+  async submitProductForm(event) {
     event.preventDefault();
 
     const name = document.getElementById("form-product-name").value.trim();
@@ -3039,7 +3049,6 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    // Dynamic field structures based on type
     const modelMakeStr = document.getElementById("form-fitment-make-model")?.value.trim() || "";
     const yearsStr = document.getElementById("form-fitment-years")?.value.trim() || "";
 
@@ -3072,13 +3081,15 @@ class AbbosseyOkaiApp {
       }];
     };
 
-    let compatibility = "Universal Fit";
+    let compatibility = null;
+    let compatibilityText = "Universal Fit";
     if (type === "parts") {
       if (!modelMakeStr) {
         this.showToast("Please enter Model (Make) for the spare part.", "error");
         return;
       }
       compatibility = parseFitment(modelMakeStr, brand);
+      compatibilityText = null;
     } else {
       const isUniversal = document.getElementById("form-universal-fit")?.checked;
       if (!isUniversal) {
@@ -3087,141 +3098,148 @@ class AbbosseyOkaiApp {
           return;
         }
         compatibility = parseFitment(modelMakeStr, brand);
+        compatibilityText = null;
       }
     }
+
+    const token = localStorage.getItem("ao_jwt_token");
 
     // Check if we are in edit mode
     if (this.editingProductId) {
-      const idx = this.products.findIndex(p => p.id === this.editingProductId);
-      if (idx !== -1) {
-        const existing = this.products[idx];
-        this.products[idx] = {
-          ...existing,
-          mainType: type,
-          name: name,
-          brand: brand,
-          category: category,
-          condition: condition,
-          price: price,
-          stock: stock,
-          images: [...this.selectedFormImages],
-          compatibility: compatibility,
-          description: desc || `Authentic ${name} distributed directly from Abossey Okai hub.`
-        };
+      this.showToast("Updating listing in Neon DB...", "info");
+      try {
+        const res = await fetch(`http://localhost:3001/api/products/${this.editingProductId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": token ? `Bearer ${token}` : ""
+          },
+          body: JSON.stringify({
+            name, brand, category, condition, price, stock,
+            description: desc, images: [...this.selectedFormImages],
+            compatibility: Array.isArray(compatibility) ? compatibility : null,
+            compatibility_text: compatibilityText
+          })
+        });
+        if (res.ok) {
+          this.showToast(`Product "${name}" updated in database!`, "success");
+        } else {
+          const errData = await res.json();
+          this.showToast(errData.error || "Failed to update product.", "error");
+        }
+      } catch (e) {
+        this.showToast("Could not reach backend server.", "error");
       }
       this.editingProductId = null;
-      this.saveProductsToStorage();
       this.closeProductForm();
-      
-      if (this.isMerchantLoggedIn) {
-        this.renderMerchantInventory();
-        this.renderMerchantMetrics();
-      } else if (this.isAdminLoggedIn) {
-        this.renderAdminListings();
-        this.renderAdminOverview();
-        this.logAdminAction("LISTING_EDIT", name, `Listing details updated by administrator`);
-      }
-      
-      this.renderBrandFilters();
-      this.renderCatalog();
-      this.showToast(`Product listing "${name}" updated successfully!`, "success");
+      await this.loadBackendData();
     } else {
-      // Creating new object
-      const initialStatus = this.premoderation ? "Pending Review" : "Live";
-      const newProduct = {
-        id: "merchant-" + Date.now(),
-        mainType: type,
-        name: name,
-        brand: brand,
-        category: category,
-        condition: condition,
-        price: price,
-        stock: stock,
-        status: initialStatus,
-        images: [...this.selectedFormImages],
-        compatibility: compatibility,
-        description: desc || `Authentic ${name} distributed directly from Abossey Okai hub.`,
-        merchant: {
-          shopName: this.merchantProfile ? this.merchantProfile.shopName : "Administrator Shop",
-          phone: this.merchantProfile ? this.merchantProfile.phone : "+233240000000",
-          location: this.merchantProfile ? this.merchantProfile.location : "Abossey Okai Market, Accra",
-          coordinates: this.merchantProfile ? this.merchantProfile.coordinates : "5.5562, -0.2284",
-          verified: this.merchantProfile ? this.merchantProfile.verified : true,
-          since: this.merchantProfile ? this.merchantProfile.since : "Jul 2026"
+      // Creating new product via POST /api/products
+      this.showToast("Publishing listing to Neon DB...", "info");
+      try {
+        const res = await fetch("http://localhost:3001/api/products", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": token ? `Bearer ${token}` : ""
+          },
+          body: JSON.stringify({
+            main_type: type,
+            name, brand, category, condition, price, stock,
+            description: desc, images: [...this.selectedFormImages],
+            compatibility: Array.isArray(compatibility) ? compatibility : null,
+            compatibility_text: compatibilityText
+          })
+        });
+
+        if (res.ok) {
+          this.showToast(`Product "${name}" published to database!`, "success");
+        } else {
+          const errData = await res.json();
+          this.showToast(errData.error || "Failed to publish product.", "error");
         }
-      };
-
-      // Add to state and persist
-      this.products.unshift(newProduct);
-      this.saveProductsToStorage();
-
+      } catch (e) {
+        this.showToast("Could not reach backend server.", "error");
+      }
       this.closeProductForm();
-      
-      if (this.isMerchantLoggedIn) {
-        this.renderMerchantInventory();
-        this.renderMerchantMetrics();
-      } else if (this.isAdminLoggedIn) {
-        this.renderAdminListings();
-        this.renderAdminOverview();
-        this.logAdminAction("TAXONOMY_ADD", name, `New product published by administrator`);
-      }
-      
-      this.renderBrandFilters();
-      this.renderCatalog();
-      
-      if (this.premoderation) {
-        this.showToast(`Product listing "${name}" submitted for admin review!`, "success");
-      } else {
-        this.showToast(`Product listing "${name}" published successfully!`, "success");
-      }
+      await this.loadBackendData();
     }
   }
 
-  // Toggle Visibility in inventory row
-  toggleListingVisibility(id) {
+  // Toggle Visibility in inventory row (API call)
+  async toggleListingVisibility(id) {
     const item = this.products.find(p => p.id === id);
     if (!item) return;
 
-    item.status = item.status === "Live" ? "Hidden" : "Live";
-    this.saveProductsToStorage();
-    this.renderMerchantInventory();
-    this.renderMerchantMetrics();
-    this.renderCatalog();
-    
-    this.showToast(`Listing visibility updated to ${item.status}`, "success");
+    const newStatus = item.status === "Live" ? "Hidden" : "Live";
+    const token = localStorage.getItem("ao_jwt_token");
+
+    try {
+      const res = await fetch(`http://localhost:3001/api/products/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        this.showToast(`Listing status set to ${newStatus}`, "success");
+      }
+    } catch (e) {}
+
+    await this.loadBackendData();
   }
 
-  // Toggle stock values
-  toggleListingStock(id) {
+  // Toggle stock values (API call)
+  async toggleListingStock(id) {
     const item = this.products.find(p => p.id === id);
     if (!item) return;
 
-    item.stock = item.stock === "In Stock" ? "Out of Stock" : "In Stock";
-    this.saveProductsToStorage();
-    this.renderMerchantInventory();
-    this.renderMerchantMetrics();
-    this.renderCatalog();
+    const newStock = item.stock === "In Stock" ? "Out of Stock" : "In Stock";
+    const token = localStorage.getItem("ao_jwt_token");
 
-    this.showToast(`Stock status set to ${item.stock}`, "success");
+    try {
+      const res = await fetch(`http://localhost:3001/api/products/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
+        },
+        body: JSON.stringify({ stock: newStock })
+      });
+      if (res.ok) {
+        this.showToast(`Stock status set to ${newStock}`, "success");
+      }
+    } catch (e) {}
+
+    await this.loadBackendData();
   }
 
-  // Delete product listing
-  deleteProductListing(id) {
+  // Delete product listing (API call)
+  async deleteProductListing(id) {
     if (!confirm("Are you sure you want to delete this listing permanently from inventory?")) return;
 
-    const idx = this.products.findIndex(p => p.id === id);
-    if (idx === -1) return;
+    const token = localStorage.getItem("ao_jwt_token");
 
-    const name = this.products[idx].name;
-    this.products.splice(idx, 1);
-    this.saveProductsToStorage();
-    
-    this.renderMerchantInventory();
-    this.renderMerchantMetrics();
-    this.renderBrandFilters();
-    this.renderCatalog();
+    try {
+      const res = await fetch(`http://localhost:3001/api/products/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": token ? `Bearer ${token}` : ""
+        }
+      });
+      if (res.ok) {
+        this.showToast(`Deleted listing permanently from database.`, "success");
+      } else {
+        const errData = await res.json();
+        this.showToast(errData.error || "Failed to delete listing.", "error");
+      }
+    } catch (e) {
+      this.showToast("Could not connect to server.", "error");
+    }
 
-    this.showToast(`Deleted listing: "${name}"`, "success");
+    await this.loadBackendData();
   }
 
   // Bulk visibility operations
