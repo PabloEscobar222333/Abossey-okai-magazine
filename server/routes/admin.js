@@ -251,4 +251,23 @@ router.delete("/brands/:id", async (req, res) => {
   }
 });
 
+// ─── POST /api/admin/audit-logs ─────────────────────────
+// Insert a manual audit log entry from the admin frontend
+router.post("/audit-logs", async (req, res) => {
+  try {
+    const { action, target, details } = req.body;
+
+    const [log] = await sql`
+      INSERT INTO audit_logs (admin_id, action, target, details)
+      VALUES (${req.user.id}, ${action}, ${target || null}, ${details || null})
+      RETURNING *
+    `;
+
+    res.status(201).json({ log });
+  } catch (err) {
+    console.error("Insert audit log error:", err);
+    res.status(500).json({ error: "Failed to insert audit log" });
+  }
+});
+
 export default router;

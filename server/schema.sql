@@ -8,8 +8,10 @@ CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
   email         VARCHAR(255) UNIQUE,
   phone         VARCHAR(20) UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255),            -- nullable for Google OAuth users
   full_name     VARCHAR(255),
+  google_id     VARCHAR(255) UNIQUE,     -- Google OAuth unique sub/uid
+  avatar_url    TEXT,                     -- Google profile picture URL
   role          VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('customer', 'merchant', 'admin')),
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   updated_at    TIMESTAMPTZ DEFAULT NOW()
@@ -24,6 +26,9 @@ CREATE TABLE IF NOT EXISTS merchants (
   email              VARCHAR(255),
   location           TEXT,
   coordinates        VARCHAR(50),
+  latitude           DECIMAL(9,6),
+  longitude          DECIMAL(9,6),
+  location_data      JSONB,
   description        TEXT,
   specialty          VARCHAR(50),
   avatar_url         TEXT,
@@ -125,10 +130,16 @@ CREATE INDEX IF NOT EXISTS idx_products_main_type ON products(main_type);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand);
+CREATE INDEX IF NOT EXISTS idx_products_price ON products(price);
+CREATE INDEX IF NOT EXISTS idx_products_category_price ON products(category, price);
+CREATE INDEX IF NOT EXISTS idx_products_main_type_price ON products(main_type, price);
+CREATE INDEX IF NOT EXISTS idx_products_status_price ON products(status, price);
 CREATE INDEX IF NOT EXISTS idx_product_compat_product_id ON product_compatibility(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_compat_make_model ON product_compatibility(make, model);
 CREATE INDEX IF NOT EXISTS idx_merchants_user_id ON merchants(user_id);
+CREATE INDEX IF NOT EXISTS idx_merchants_lat_lng ON merchants(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_id ON audit_logs(admin_id);
 CREATE INDEX IF NOT EXISTS idx_reported_product_id ON reported_listings(product_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);

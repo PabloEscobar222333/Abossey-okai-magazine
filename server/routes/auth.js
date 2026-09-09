@@ -1,7 +1,11 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import { auth as firebaseAuth } from "../firebase-admin.js";
 import sql from "../db.js";
 import { generateToken, requireAuth } from "../middleware/auth.js";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const router = Router();
 
@@ -210,6 +214,99 @@ router.post("/register-merchant", async (req, res) => {
   } catch (err) {
     console.error("Register merchant error:", err);
     res.status(500).json({ error: "Merchant registration failed" });
+  }
+});
+
+// ─── POST /api/auth/google ──────────────────────────────
+// Authenticate with Google ID token from Firebase Auth
+router.post("/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ error: "Firebase ID token is required" });
+    }
+
+    // 1. Verify the Firebase ID token cryptographically
+    let decodedToken;
+    try {
+      decodedToken = await firebaseAuth.verifyIdToken(credential);
+    } catch (verifyErr) {
+      console.error("Firebase token verification failed:", verifyErr.message);
+      return res.status(401).json({ error: "Invalid Firebase token: " + verifyErr.message });
+    }
+
+    const { uid: googleId, email, name, picture } = decodedToken;
+
+    if (!email) {
+      return res.status(400).json({ error: "Google account has no email" });
+    }
+
+    // 2. Check if user already exists (by google_id or email)
+    let users = [];
+    if (googleId) {
+      users = await sql`SELECT * FROM users WHERE google_id = ${googleId}`;
+    }
+    
+    if (users.length === 0) {
+      // Try matching by email
+      users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    }
+
+    let user;
+
+    if (users.length > 0) {
+      // Existing user — update google_id and avatar if not set
+      user = users[0];
+      await sql`
+        UPDATE users 
+        SET google_id = COALESCE(google_id, ${googleId || 'g_' + Date.now()}), 
+            avatar_url = COALESCE(avatar_url, ${picture}),
+            full_name = COALESCE(full_name, ${name}),
+            updated_at = NOW()
+        WHERE id = ${user.id}
+      `;
+      // Re-fetch to get updated fields
+      const updated = await sql`SELECT * FROM users WHERE id = ${user.id}`;
+      user = updated[0];
+    } else {
+      // New user — auto-register as customer
+      const [newUser] = await sql`
+        INSERT INTO users (email, google_id, full_name, avatar_url, role, password_hash)
+        VALUES (${email}, ${googleId || 'g_' + Date.now()}, ${name || null}, ${picture || null}, 'customer', NULL)
+        RETURNING *
+      `;
+      user = newUser;
+    }
+
+    // 3. If merchant, fetch merchant profile
+    let merchantProfile = null;
+    if (user.role === "merchant") {
+      const merchants = await sql`SELECT * FROM merchants WHERE user_id = ${user.id}`;
+      if (merchants.length > 0) {
+        merchantProfile = merchants[0];
+      }
+    }
+
+    // 4. Issue JWT
+    const token = generateToken(user);
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        role: user.role,
+        avatar_url: user.avatar_url,
+        created_at: user.created_at,
+      },
+      merchantProfile,
+      token,
+    });
+  } catch (err) {
+    console.error("Google auth error:", err);
+    res.status(500).json({ error: "Google authentication failed" });
   }
 });
 

@@ -5,29 +5,51 @@ import { requireAuth, requireMerchant, requireAdmin, optionalAuth } from "../mid
 const router = Router();
 
 // ─── GET /api/products ──────────────────────────────────
-// List products with optional filters, search, and pagination
+// Simple in-memory bucket cache for facet aggregations (60s TTL)
+const facetCache = new Map();
+const FACET_CACHE_TTL = 60 * 1000;
+
+// ─── GET /api/products ──────────────────────────────────
+// List products with optional filters, search, pagination, and price range facet support
 router.get("/", async (req, res) => {
   try {
     const {
       type, category, brand, condition, status,
       search, merchant_id, sort, page, limit,
-      price_min, price_max
+      price_min, price_max, minPrice, maxPrice, min, max
     } = req.query;
 
     const pageNum = parseInt(page) || 1;
     const pageSize = parseInt(limit) || 50;
     const offset = (pageNum - 1) * pageSize;
 
+    // Sanitize and normalize price range inputs
+    const rawMin = minPrice ?? price_min ?? min;
+    const rawMax = maxPrice ?? price_max ?? max;
+    
+    let parsedMin = rawMin !== undefined && rawMin !== null && rawMin !== "" ? parseFloat(rawMin) : null;
+    let parsedMax = rawMax !== undefined && rawMax !== null && rawMax !== "" ? parseFloat(rawMax) : null;
+
+    if (parsedMin !== null && (isNaN(parsedMin) || parsedMin < 0)) parsedMin = null;
+    if (parsedMax !== null && (isNaN(parsedMax) || parsedMax < 0)) parsedMax = null;
+
+    // Edge case: handle min > max by gracefully swapping them
+    if (parsedMin !== null && parsedMax !== null && parsedMin > parsedMax) {
+      const temp = parsedMin;
+      parsedMin = parsedMax;
+      parsedMax = temp;
+    }
+
     // Build dynamic WHERE clauses
     let conditions = [];
-    let params = [];
 
     // For public listing, only show Live products
-    if (status) {
+    if (status && status !== 'all') {
       conditions.push(`p.status = '${status}'`);
-    } else {
+    } else if (!status) {
       conditions.push(`p.status = 'Live'`);
     }
+    // When status=all, no status filter is added — returns all products
 
     if (type && type !== "all") {
       conditions.push(`p.main_type = '${type}'`);
@@ -44,11 +66,14 @@ router.get("/", async (req, res) => {
     if (merchant_id) {
       conditions.push(`p.merchant_id = ${parseInt(merchant_id)}`);
     }
-    if (price_min) {
-      conditions.push(`p.price >= ${parseFloat(price_min)}`);
-    }
-    if (price_max) {
-      conditions.push(`p.price <= ${parseFloat(price_max)}`);
+
+    // SQL Price Range Query (BETWEEN or unbounded conditions)
+    if (parsedMin !== null && parsedMax !== null) {
+      conditions.push(`p.price BETWEEN ${parsedMin} AND ${parsedMax}`);
+    } else if (parsedMin !== null) {
+      conditions.push(`p.price >= ${parsedMin}`);
+    } else if (parsedMax !== null) {
+      conditions.push(`p.price <= ${parsedMax}`);
     }
 
     const whereClause = conditions.length > 0 ? conditions.join(" AND ") : "1=1";
@@ -56,8 +81,8 @@ router.get("/", async (req, res) => {
     // Sort
     let orderBy = "p.views DESC"; // default: popular
     if (sort === "newest") orderBy = "p.created_at DESC";
-    else if (sort === "price_low") orderBy = "p.price ASC";
-    else if (sort === "price_high") orderBy = "p.price DESC";
+    else if (sort === "price_low" || sort === "price-low") orderBy = "p.price ASC";
+    else if (sort === "price_high" || sort === "price-high") orderBy = "p.price DESC";
     else if (sort === "popular") orderBy = "p.views DESC";
 
     // Search filter
@@ -98,6 +123,54 @@ router.get("/", async (req, res) => {
       WHERE ${whereClause} ${searchClause}
     `);
 
+    // Faceted counts & bucket aggregations with cache
+    const cacheKey = `facets:${status || 'Live'}:${type || 'all'}:${category || 'all'}:${brand || 'all'}`;
+    let facetData = facetCache.get(cacheKey);
+    const now = Date.now();
+
+    if (!facetData || (now - facetData.timestamp > FACET_CACHE_TTL)) {
+      try {
+        let baseConditions = [];
+        if (status && status !== 'all') baseConditions.push(`p.status = '${status}'`);
+        else if (!status) baseConditions.push(`p.status = 'Live'`);
+        if (type && type !== "all") baseConditions.push(`p.main_type = '${type}'`);
+        if (category) baseConditions.push(`p.category = '${category}'`);
+        if (brand) baseConditions.push(`p.brand = '${brand}'`);
+        const baseWhere = baseConditions.length > 0 ? baseConditions.join(" AND ") : "1=1";
+
+        const aggResult = await sql(`
+          SELECT 
+            MIN(p.price) as min_catalog_price,
+            MAX(p.price) as max_catalog_price,
+            COUNT(CASE WHEN p.price < 500 THEN 1 END) as count_under_500,
+            COUNT(CASE WHEN p.price >= 500 AND p.price < 1500 THEN 1 END) as count_500_1500,
+            COUNT(CASE WHEN p.price >= 1500 AND p.price < 5000 THEN 1 END) as count_1500_5000,
+            COUNT(CASE WHEN p.price >= 5000 THEN 1 END) as count_5000_plus
+          FROM products p
+          WHERE ${baseWhere}
+        `);
+
+        if (aggResult && aggResult[0]) {
+          facetData = {
+            timestamp: now,
+            data: {
+              minCatalogPrice: parseFloat(aggResult[0].min_catalog_price) || 0,
+              maxCatalogPrice: parseFloat(aggResult[0].max_catalog_price) || 10000,
+              buckets: {
+                under500: parseInt(aggResult[0].count_under_500) || 0,
+                b500_1500: parseInt(aggResult[0].count_500_1500) || 0,
+                b1500_5000: parseInt(aggResult[0].count_1500_5000) || 0,
+                b5000_plus: parseInt(aggResult[0].count_5000_plus) || 0
+              }
+            }
+          };
+          facetCache.set(cacheKey, facetData);
+        }
+      } catch (aggErr) {
+        console.warn("Facet aggregation warning:", aggErr.message);
+      }
+    }
+
     res.json({
       products,
       pagination: {
@@ -106,6 +179,11 @@ router.get("/", async (req, res) => {
         total: parseInt(countResult[0].total),
         totalPages: Math.ceil(parseInt(countResult[0].total) / pageSize),
       },
+      facets: facetData ? facetData.data : null,
+      appliedFilters: {
+        minPrice: parsedMin,
+        maxPrice: parsedMax
+      }
     });
   } catch (err) {
     console.error("List products error:", err);

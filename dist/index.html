@@ -13,13 +13,15 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   
   <!-- Manifest for PWA -->
   <link rel="manifest" href="/assets/manifest-hOqIxLJL.json">
   <meta name="theme-color" content="#0F4C81">
   <link rel="apple-touch-icon" href="/assets/images/icon-192.png">
-  <script type="module" crossorigin src="/assets/index-ndXA6OLI.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-C0UcQ6-b.css">
+  <!-- Firebase Auth (bundled via Vite from npm) -->
+  <script type="module" crossorigin src="/assets/index-DAgp4FQL.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BpgDrz3k.css">
 </head>
 <body>
 
@@ -521,12 +523,37 @@
               </div>
             </div>
 
-            <div class="filter-group">
-              <h4 class="filter-group-title">Price Range (GHS)</h4>
-              <div class="price-range-slider">
+            <div class="filter-group price-filter-group">
+              <div class="filter-group-header">
+                <h4 class="filter-group-title">PRICE RANGE (GHS)</h4>
+                <span class="price-range-count-badge" id="price-range-count-badge"></span>
+              </div>
+              <div class="price-range-container">
+                <div class="price-range-histogram" id="price-range-histogram" title="Price density distribution">
+                  <div class="histogram-bars" id="histogram-bars"></div>
+                </div>
                 <div class="price-inputs">
-                  <input type="number" id="price-min" placeholder="Min" min="0" oninput="app.onFilterChange()">
-                  <input type="number" id="price-max" placeholder="Max" min="0" oninput="app.onFilterChange()">
+                  <div class="price-input-box">
+                    <input type="number" id="price-min" placeholder="Min" min="0" step="1" inputmode="numeric" aria-label="Minimum Price in GHS">
+                  </div>
+                  <div class="price-input-box">
+                    <input type="number" id="price-max" placeholder="Max" min="0" step="1" inputmode="numeric" aria-label="Maximum Price in GHS">
+                  </div>
+                </div>
+                <div class="price-preset-chips" id="price-preset-chips">
+                  <button type="button" class="price-preset-chip active" data-min="" data-max="" onclick="app.setPricePreset('', '')">All</button>
+                  <button type="button" class="price-preset-chip" data-min="0" data-max="500" onclick="app.setPricePreset(0, 500)">&lt; 500</button>
+                  <button type="button" class="price-preset-chip" data-min="500" data-max="1500" onclick="app.setPricePreset(500, 1500)">500–1.5k</button>
+                  <button type="button" class="price-preset-chip" data-min="1500" data-max="5000" onclick="app.setPricePreset(1500, 5000)">1.5k–5k</button>
+                  <button type="button" class="price-preset-chip" data-min="5000" data-max="" onclick="app.setPricePreset(5000, '')">5k+</button>
+                </div>
+                <div class="price-action-row">
+                  <button type="button" class="btn btn-sm price-apply-btn" id="price-apply-btn" onclick="app.applyPriceFilter()">
+                    Apply
+                  </button>
+                  <button type="button" class="btn btn-sm price-clear-btn" id="price-clear-btn" onclick="app.clearPriceFilter()">
+                    Clear
+                  </button>
                 </div>
               </div>
             </div>
@@ -731,13 +758,13 @@
             <!-- Selectors for Model and Year -->
             <div class="brand-selectors-grid">
               <div class="filter-field">
-                <label for="select-brand-model">Select Model <span class="required-asterisk">*</span></label>
+                <label for="select-brand-model">Select Model <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(Optional)</span></label>
                 <select id="select-brand-model" onchange="app.onBrandModelChange()">
                   <option value="">Choose Model</option>
                 </select>
               </div>
               <div class="filter-field">
-                <label for="select-brand-year">Select Year <span class="required-asterisk">*</span></label>
+                <label for="select-brand-year">Select Year <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(Optional)</span></label>
                 <select id="select-brand-year" disabled>
                   <option value="">Choose Year</option>
                 </select>
@@ -747,7 +774,7 @@
             <!-- Part search input inside dialog -->
             <div class="brand-search-input-wrapper">
               <i class="fa-solid fa-magnifying-glass search-icon-left"></i>
-              <input type="text" class="global-search-input" id="brand-part-search-input" placeholder="What part are you looking for? e.g. Brake Pads..." autocomplete="off">
+              <input type="text" class="global-search-input" id="brand-part-search-input" placeholder="What part are you looking for? e.g. Brake Pads..." autocomplete="off" onkeydown="if(event.key==='Enter') app.applyBrandPartsSearch()">
             </div>
 
             <button class="btn btn-primary search-apply-btn" id="brand-parts-search-apply" onclick="app.applyBrandPartsSearch()">
@@ -805,6 +832,9 @@
             </li>
             <li class="dashboard-menu-item" id="db-menu-profile" onclick="app.switchDashboardTab('profile')">
               <i class="fa-solid fa-id-card"></i> Shop Profile Settings
+            </li>
+            <li class="dashboard-menu-item" id="db-menu-locations" onclick="app.switchDashboardTab('locations')">
+              <i class="fa-solid fa-map-location-dot"></i> Locations & Map
             </li>
             <li class="dashboard-menu-item" onclick="app.logoutMerchant()">
               <i class="fa-solid fa-right-from-bracket"></i> Exit Dashboard
@@ -982,6 +1012,7 @@
                   </div>
                   <!-- Hidden input to maintain compatibility -->
                   <input type="hidden" id="settings-category-tags">
+                </div>
 
                 <!-- 5. Action Footer Buttons -->
                 <div class="settings-footer-actions">
@@ -1004,6 +1035,191 @@
 
             </div>
 
+          </div>
+
+          <!-- TAB 3: Locations & Map Picker -->
+          <div class="dashboard-tab-panel" id="db-panel-locations" style="display: none;">
+            
+            <div class="merchant-settings-container">
+              
+              <!-- 1. Header Card -->
+              <div class="settings-header-card">
+                <div class="settings-header-left">
+                  <button type="button" class="settings-back-btn" onclick="app.switchDashboardTab('inventory')" aria-label="Go Back">
+                    <i class="fa-solid fa-arrow-left"></i>
+                  </button>
+                  <div class="settings-header-text">
+                    <h2>Shop Location & Map Picker</h2>
+                    <p>Pinpoint your exact shop location in Abossey Okai so buyers can get direct turn-by-turn navigation to your stall.</p>
+                  </div>
+                </div>
+                <div class="settings-header-actions">
+                  <button type="button" class="btn btn-primary btn-sm" id="save-location-top-btn" onclick="app.saveMerchantLocation()">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Save Shop Location
+                  </button>
+                </div>
+              </div>
+
+              <!-- 2. Location Search & Quick-Select Card -->
+              <div class="settings-section-card">
+                <div class="section-card-header">
+                  <div class="section-icon-badge blue-badge">
+                    <i class="fa-solid fa-magnifying-glass-location"></i>
+                  </div>
+                  <div>
+                    <h3>Find & Jump to Area</h3>
+                    <p class="section-desc">Search by neighborhood, street name, or paste raw GPS coordinates (e.g. <code>5.5562, -0.2284</code>).</p>
+                  </div>
+                </div>
+
+                <!-- Search Input with Auto-complete & Clear -->
+                <div class="map-search-bar-wrapper">
+                  <div class="map-search-input-box">
+                    <i class="fa-solid fa-search map-search-icon"></i>
+                    <input type="text" id="merchant-map-search-input" placeholder="Search area in Accra (e.g. Abossey Okai Central, Zongo Junction) or paste lat, lng..." autocomplete="off">
+                    <button type="button" class="map-search-clear-btn" id="merchant-map-clear-search" onclick="app.clearMerchantMapSearch()" style="display:none;" title="Clear search">
+                      <i class="fa-solid fa-xmark"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary map-search-action-btn" onclick="app.searchMerchantLocation()">
+                      Search
+                    </button>
+                  </div>
+                  <!-- Geocoding Autocomplete Dropdown -->
+                  <div class="map-search-dropdown" id="merchant-map-search-results" style="display: none;"></div>
+                </div>
+
+                <!-- Quick Select Local Chips -->
+                <div class="map-preset-chips-section">
+                  <span class="preset-chips-label"><i class="fa-solid fa-bolt"></i> Quick Jump to Popular Auto Hubs:</span>
+                  <div class="map-preset-chips" id="merchant-preset-chips">
+                    <button type="button" class="map-preset-chip active" data-lat="5.5562" data-lng="-0.2284" onclick="app.jumpMerchantMapPreset(5.5562, -0.2284, 'Abossey Okai Central', this)">
+                      <i class="fa-solid fa-location-crosshairs"></i> Abossey Okai Central
+                    </button>
+                    <button type="button" class="map-preset-chip" data-lat="5.5585" data-lng="-0.2310" onclick="app.jumpMerchantMapPreset(5.5585, -0.2310, 'Zongo Junction', this)">
+                      Zongo Junction
+                    </button>
+                    <button type="button" class="map-preset-chip" data-lat="5.5642" data-lng="-0.2325" onclick="app.jumpMerchantMapPreset(5.5642, -0.2325, 'Kaneshie Market', this)">
+                      Kaneshie Market
+                    </button>
+                    <button type="button" class="map-preset-chip" data-lat="5.5520" data-lng="-0.2210" onclick="app.jumpMerchantMapPreset(5.5520, -0.2210, 'Agbogbloshie Auto Spare Market', this)">
+                      Agbogbloshie
+                    </button>
+                    <button type="button" class="map-preset-chip" data-lat="5.5600" data-lng="-0.2150" onclick="app.jumpMerchantMapPreset(5.5600, -0.2150, 'Odawna / Circle Auto Hub', this)">
+                      Circle / Odawna
+                    </button>
+                    <button type="button" class="map-preset-chip" data-lat="5.5710" data-lng="-0.2400" onclick="app.jumpMerchantMapPreset(5.5710, -0.2400, 'Kokompe Auto Market', this)">
+                      Kokompe Auto
+                    </button>
+                    <button type="button" class="map-preset-chip" data-lat="5.5780" data-lng="-0.2450" onclick="app.jumpMerchantMapPreset(5.5780, -0.2450, 'Darkuman Junction', this)">
+                      Darkuman Junction
+                    </button>
+                    <button type="button" class="map-preset-chip" data-lat="5.6250" data-lng="-0.1050" onclick="app.jumpMerchantMapPreset(5.6250, -0.1050, 'Spintex Auto Hub', this)">
+                      Spintex Road Hub
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. Interactive Leaflet Map Card -->
+              <div class="settings-section-card">
+                <div class="map-container-header">
+                  <div class="map-helper-banner">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                    <span>Tap anywhere on the map or drag the blue pin to set your exact shop location.</span>
+                  </div>
+                  <div class="map-toolbar-actions">
+                    <button type="button" class="btn btn-sm btn-outline" id="merchant-auto-gps-btn" onclick="app.detectMerchantDeviceLocation()">
+                      <i class="fa-solid fa-crosshairs"></i> Auto-Detect My Location (GPS)
+                    </button>
+                    <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-ghost escape-hatch-btn" id="merchant-google-maps-escape-hatch">
+                      <i class="fa-brands fa-google"></i> Open in Google Maps
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Live Leaflet Map Container -->
+                <div class="merchant-map-wrapper">
+                  <div id="merchant-interactive-map" class="merchant-leaflet-map"></div>
+                  
+                  <!-- GPS Accuracy Alert (shown when GPS accuracy > 100m or source is GPS) -->
+                  <div class="map-accuracy-notice" id="merchant-map-accuracy-notice" style="display:none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="merchant-map-accuracy-text">GPS accuracy is approximate. Please manually drag the pin on the map to confirm your precise shop position.</span>
+                  </div>
+                </div>
+
+                <!-- 4. Location Metadata & Transparency Details -->
+                <div class="location-metadata-grid">
+                  <div class="meta-field-card">
+                    <span class="meta-label">Selected Coordinates</span>
+                    <span class="meta-value coords-mono" id="merchant-coords-display">5.556200, -0.228400</span>
+                  </div>
+                  <div class="meta-field-card">
+                    <span class="meta-label">Capture Source</span>
+                    <span class="meta-value" id="merchant-source-display"><span class="badge-source badge-manual">Manual Pin</span></span>
+                  </div>
+                  <div class="meta-field-card">
+                    <span class="meta-label">GPS Accuracy</span>
+                    <span class="meta-value" id="merchant-accuracy-display">±15 m (High Precision)</span>
+                  </div>
+                  <div class="meta-field-card">
+                    <span class="meta-label">Formatted Address</span>
+                    <span class="meta-value" id="merchant-address-display">Abossey Okai, Accra, Greater Accra, Ghana</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5. Shop Stall, Landmarks & Directions Preview Card -->
+              <div class="settings-section-card">
+                <div class="section-card-header">
+                  <div class="section-icon-badge blue-badge">
+                    <i class="fa-solid fa-signs-post"></i>
+                  </div>
+                  <div>
+                    <h3>Shop Stall & Landmark Guide</h3>
+                    <p class="section-desc">Add nearby landmarks or stall numbers to help customers walk directly to your shop.</p>
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label for="merchant-stall-number">Stall / Store / Shop Number</label>
+                    <input type="text" id="merchant-stall-number" placeholder="e.g. Stall C-12, Block 4" oninput="app.onLocationDetailChange()">
+                  </div>
+                  <div class="form-group">
+                    <label for="merchant-landmarks">Nearby Prominent Landmark</label>
+                    <input type="text" id="merchant-landmarks" placeholder="e.g. Opposite Central Mosque, next to Total Filling Station" oninput="app.onLocationDetailChange()">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="merchant-custom-location-text">Customer-Facing Location Summary</label>
+                  <input type="text" id="merchant-custom-location-text" placeholder="e.g. Stall C12, Abossey Okai Central (near Total Station)" oninput="app.onLocationDetailChange()">
+                </div>
+
+                <!-- Customer Directions Deep Link Preview -->
+                <div class="directions-preview-box">
+                  <h4><i class="fa-solid fa-diamond-turn-right"></i> Customer Deep Link Preview</h4>
+                  <p>When buyers click "Get Directions" on your products, they will open these native navigation links:</p>
+                  <div class="directions-button-row">
+                    <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-google" id="preview-google-directions-btn">
+                      <i class="fa-brands fa-google"></i> Open in Google Maps
+                    </a>
+                    <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-apple" id="preview-apple-directions-btn">
+                      <i class="fa-brands fa-apple"></i> Open in Apple Maps
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Save Action Footer -->
+                <div class="location-save-footer">
+                  <button type="button" class="btn btn-primary" id="save-location-bottom-btn" onclick="app.saveMerchantLocation()">
+                    <i class="fa-solid fa-check"></i> Save & Publish Shop Location
+                  </button>
+                </div>
+              </div>
+
+            </div>
           </div>
 
         </div>
@@ -1196,7 +1412,6 @@
               <form id="admin-onboard-merchant-form" onsubmit="app.onboardMerchant(event)">
 
                 <!-- Hidden compatibility inputs -->
-                <input type="hidden" id="onboard-merchant-email" value="">
                 <input type="hidden" id="onboard-merchant-specialty" value="general">
 
                 <!-- 2. Business Information Card -->
@@ -1234,6 +1449,15 @@
                     <h3>Contact &amp; Location</h3>
                   </div>
 
+                  <div class="form-group">
+                    <label for="onboard-merchant-email">Merchant Email <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(used for dashboard login)</span></label>
+                    <div class="input-with-left-icon">
+                      <span class="left-input-icon" style="color: #3b82f6;"><i class="fa-solid fa-envelope"></i></span>
+                      <input type="email" id="onboard-merchant-email" required placeholder="merchant@example.com" oninput="app.onSettingsInputChange(this)">
+                      <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
+                    </div>
+                  </div>
+
                   <div class="form-row-2col">
                     <div class="form-group">
                       <label for="onboard-merchant-phone">WhatsApp Number</label>
@@ -1258,27 +1482,43 @@
                     <label for="onboard-merchant-coords">GPS Coordinates</label>
                     <div class="input-with-left-icon">
                       <span class="left-input-icon blue-color"><i class="fa-solid fa-location-dot"></i></span>
-                      <input type="text" id="onboard-merchant-coords" required placeholder="5.5562, -0.2284" oninput="app.updateMapPreviewLink(this.value)">
+                      <input type="text" id="onboard-merchant-coords" required placeholder="5.5562, -0.2284" readonly style="cursor: default; background: #f8fafc;">
                       <span class="valid-check-icon"><i class="fa-solid fa-check"></i></span>
                     </div>
                   </div>
 
-                  <!-- Stylized Map Graphic Box -->
-                  <div class="settings-map-box">
-                    <div class="map-graphic-layer">
-                      <div class="map-grid-bg"></div>
-                      <div class="map-road map-road-main"></div>
-                      <div class="map-road map-road-sec"></div>
-                      <div class="map-green-area area-1"></div>
-                      <div class="map-green-area area-2"></div>
-                      <div class="map-marker-pin">
-                        <i class="fa-solid fa-location-dot"></i>
-                        <span class="map-pin-label" id="onboard-pin-shop-label">Abossey Okai</span>
+                  <!-- Interactive Map Section (Ride-hailing style) -->
+                  <div class="onboard-map-container">
+                    <div class="map-search-bar">
+                      <div class="map-search-input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass map-search-icon"></i>
+                        <input type="text" id="onboard-map-search" placeholder="Search place, area or paste coordinates (e.g. 5.556, -0.228)..." autocomplete="off">
+                        <button type="button" id="onboard-map-clear-search" class="map-search-clear-btn" style="display: none;" title="Clear search">
+                          <i class="fa-solid fa-xmark"></i>
+                        </button>
                       </div>
+                      <button type="button" id="onboard-map-locate-btn" class="map-locate-btn" title="Use my current location">
+                        <i class="fa-solid fa-crosshairs"></i>
+                      </button>
                     </div>
-                    <a href="https://maps.google.com/?q=5.5562,-0.2284" id="onboard-google-maps-link" target="_blank" rel="noopener" class="map-open-link">
-                      Open in Google Maps <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                    </a>
+                    <!-- Quick Preset Location Chips -->
+                    <div class="map-quick-presets">
+                      <span class="preset-label">Quick:</span>
+                      <button type="button" class="map-preset-chip" data-lat="5.5562" data-lng="-0.2284">Abossey Okai Central</button>
+                      <button type="button" class="map-preset-chip" data-lat="5.5550" data-lng="-0.2310">Zongo Junction</button>
+                      <button type="button" class="map-preset-chip" data-lat="5.5601" data-lng="-0.2250">Kaneshie Market</button>
+                      <button type="button" class="map-preset-chip" data-lat="5.5510" data-lng="-0.2215">Agbogloshie</button>
+                      <button type="button" class="map-preset-chip" data-lat="5.5585" data-lng="-0.2135">Circle (Overhead)</button>
+                    </div>
+                    <div class="map-search-results" id="onboard-map-search-results" style="display: none;"></div>
+                    <div id="onboard-leaflet-map" class="leaflet-map-widget"></div>
+                    <div class="map-footer-row">
+                      <span class="map-coords-display" id="onboard-map-coords-display">5.5562, -0.2284</span>
+                      <a href="https://maps.google.com/?q=5.5562,-0.2284" id="onboard-google-maps-link" target="_blank" rel="noopener" class="map-open-link">
+                        Open in Google Maps <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                      </a>
+                    </div>
+                    <p class="map-help-text"><i class="fa-solid fa-hand-pointer"></i> Tap the map or drag the pin to set the exact stall location</p>
                   </div>
                 </div>
 
@@ -2069,6 +2309,9 @@
 
 
   </div>
+
+  <!-- Leaflet Map Library -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- Main JavaScript App -->
 </body>

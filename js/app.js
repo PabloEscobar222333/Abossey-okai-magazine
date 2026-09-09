@@ -1,4 +1,6 @@
 // ABBOSSEY OKAI MAGAZINE - E-Commerce Marketplace Client App logic
+import { auth } from "./firebase.js";
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, setPersistence, inMemoryPersistence } from "firebase/auth";
 
 // Mock Database Taxonomy & Vehicle Configurations
 // Mock Database Taxonomy & Vehicle Configurations
@@ -154,6 +156,9 @@ let CAR_ACCESSORY_CATEGORIES = JSON.parse(localStorage.getItem("ao_accessory_cat
 
 // Dynamic data loaded live from Neon PostgreSQL Backend API (/api/*)
 
+// Firebase Auth handles Google OAuth — no manual Client ID needed
+const API_BASE = "http://localhost:3001";
+
 class AbbosseyOkaiApp {
   constructor() {
     this.searchMode = "parts"; // 'parts' or 'accessories'
@@ -166,6 +171,12 @@ class AbbosseyOkaiApp {
     this.selectedFitmentsInForm = [];
     this.selectedFormImages = [];
     this.currentFormStep = 1;
+    this.brands = JSON.parse(localStorage.getItem("ao_brands_list")) || [
+      "Toyota", "Honda", "Nissan", "Hyundai", "Kia", "Mercedes-Benz", "BMW", "Audi", 
+      "Ford", "Chevrolet", "Mitsubishi", "Isuzu", "Subaru", "Mazda", "Volkswagen", 
+      "Land Rover", "Peugeot", "Suzuki", "Bosch", "NGK", "Denso", "Brembo", "KYB", 
+      "Monroe", "Akebono", "Mobil 1", "Total", "Shell"
+    ];
     
     // Filters State
     this.activeFilters = {
@@ -261,17 +272,61 @@ class AbbosseyOkaiApp {
 
   init() {
     this.loadPersistedData();
-    this.loadBackendData();
+    this.showCatalogSkeletons();
     this.setupPwaEvents();
     this.bindDomElements();
     this.populateSelectOptions();
-    this.renderCatalog();
     this.renderBrandFilters();
     this.setupThemeAndStyleEnhancements();
     this.renderAnnouncementBanner();
     this.setupClickTracking();
     this.setupInteractiveMarquee();
     this.setupBrandMarquee();
+    this.initUrlStateSync();
+    this.setupPriceRangeEvents();
+
+    // Load backend data async (will call renderCatalog when done)
+    this.loadBackendData();
+
+    // Firebase auth — non-blocking
+    try { this.initGoogleAuth(); } catch(e) { console.warn("Firebase auth init skipped:", e); }
+  }
+
+  // ─── Skeleton Loading Placeholders ───────────────────────
+  showCatalogSkeletons(count = 8) {
+    const container = document.getElementById("catalog-products-container");
+    if (!container) return;
+    container.innerHTML = "";
+    for (let i = 0; i < count; i++) {
+      const card = document.createElement("div");
+      card.className = "product-card skeleton-card";
+      card.innerHTML = `
+        <div class="skeleton-img skeleton-shimmer"></div>
+        <div class="skeleton-body">
+          <div class="skeleton-line skeleton-line-sm skeleton-shimmer"></div>
+          <div class="skeleton-line skeleton-line-lg skeleton-shimmer"></div>
+          <div class="skeleton-line skeleton-line-md skeleton-shimmer"></div>
+          <div class="skeleton-footer">
+            <div class="skeleton-line skeleton-line-price skeleton-shimmer"></div>
+            <div class="skeleton-line skeleton-line-badge skeleton-shimmer"></div>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    }
+  }
+
+  // ─── Firebase Auth Initialization ───────────────────────
+  initGoogleAuth() {
+    // Listen for Firebase Auth state changes
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        console.log("✅ Firebase Auth: user signed in", user.email);
+      } else {
+        console.log("ℹ️ Firebase Auth: no user signed in");
+      }
+    });
+    console.log("✅ Firebase Auth initialized");
   }
 
   setupInteractiveMarquee() {
@@ -635,6 +690,30 @@ class AbbosseyOkaiApp {
     };
   }
 
+  // Normalize backend merchant profile (snake_case) → UI merchant profile (camelCase)
+  normalizeMerchantProfile(mp) {
+    if (!mp) return mp;
+    // If already normalized (has shopName), return as-is
+    if (mp.shopName && !mp.shop_name) return mp;
+    return {
+      id: mp.id,
+      userId: mp.user_id || mp.userId,
+      shopName: mp.shop_name || mp.shopName || "Merchant",
+      phone: mp.phone || "",
+      email: mp.email || "",
+      location: mp.location || "Abossey Okai, Accra",
+      coordinates: mp.coordinates || "5.5565, -0.2282",
+      description: mp.description || "",
+      specialty: mp.specialty || "japanese",
+      avatar: mp.avatar_url || mp.avatar || null,
+      verified: mp.verified ?? false,
+      verificationNotes: mp.verification_notes || mp.verificationNotes || "",
+      status: mp.status || "Active",
+      since: mp.since || "Jan 2022",
+      categoryTags: mp.categoryTags || mp.category_tags || [],
+    };
+  }
+
   async loadBackendData() {
     // Clear legacy mock localStorage caches so browser storage never overrides Neon DB state
     try {
@@ -645,7 +724,7 @@ class AbbosseyOkaiApp {
     try {
       // 1. Fetch live products from Neon backend API
       const statusParam = (this.isAdminLoggedIn || this.isMerchantLoggedIn) ? "?status=all&limit=200" : "?status=Live&limit=100";
-      const resProducts = await fetch(`http://localhost:3001/api/products${statusParam}`);
+      const resProducts = await fetch(`${API_BASE}/api/products${statusParam}`);
       if (resProducts.ok) {
         const data = await resProducts.json();
         if (Array.isArray(data.products)) {
@@ -658,7 +737,7 @@ class AbbosseyOkaiApp {
 
     try {
       // 2. Fetch live merchants from Neon backend API
-      const resMerchants = await fetch("http://localhost:3001/api/merchants");
+      const resMerchants = await fetch(`${API_BASE}/api/merchants`);
       if (resMerchants.ok) {
         const data = await resMerchants.json();
         if (Array.isArray(data.merchants) && data.merchants.length > 0) {
@@ -672,6 +751,7 @@ class AbbosseyOkaiApp {
             description: m.description,
             specialty: m.specialty || "japanese",
             verified: m.verified,
+            verificationNotes: m.verification_notes || "",
             status: m.status,
             since: m.since || "Jan 2022"
           }));
@@ -683,7 +763,7 @@ class AbbosseyOkaiApp {
 
     try {
       // 3. Fetch live car brands from Neon backend API
-      const resBrands = await fetch("http://localhost:3001/api/brands?type=vehicle");
+      const resBrands = await fetch(`${API_BASE}/api/brands?type=vehicle`);
       if (resBrands.ok) {
         const data = await resBrands.json();
         if (Array.isArray(data.brands) && data.brands.length > 0) {
@@ -735,7 +815,7 @@ class AbbosseyOkaiApp {
       this.isMerchantLoggedIn = true;
       this.isAdminLoggedIn = false;
       this.isCustomerLoggedIn = false;
-      try { this.merchantProfile = JSON.parse(savedProfile); } catch (e) {}
+      try { this.merchantProfile = this.normalizeMerchantProfile(JSON.parse(savedProfile)); } catch (e) {}
       this.currentView = "storefront";
     } else if (savedCustomerAuth === "true") {
       this.isCustomerLoggedIn = true;
@@ -746,7 +826,7 @@ class AbbosseyOkaiApp {
 
     // Verify session with Neon backend if JWT token exists
     if (jwtToken) {
-      fetch("http://localhost:3001/api/auth/me", {
+      fetch(`${API_BASE}/api/auth/me`, {
         headers: { "Authorization": `Bearer ${jwtToken}` }
       })
       .then(res => res.ok ? res.json() : null)
@@ -761,7 +841,7 @@ class AbbosseyOkaiApp {
             this.isAdminLoggedIn = false;
             this.isCustomerLoggedIn = false;
             if (data.merchantProfile) {
-              this.merchantProfile = data.merchantProfile;
+              this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
               localStorage.setItem("ao_merchant_profile", JSON.stringify(this.merchantProfile));
             }
           } else {
@@ -1076,6 +1156,120 @@ class AbbosseyOkaiApp {
     this.toggleSearchModal(false);
   }
 
+  // Smart multi-word, stem, synonym and similarity matcher for search queries
+  matchesSearchQuery(product, query) {
+    if (!query) return true;
+    const cleanQuery = query.toLowerCase().trim();
+    if (!cleanQuery) return true;
+
+    // Build comprehensive search text for the product
+    const name = (product.name || "").toLowerCase();
+    const brand = (product.brand || "").toLowerCase();
+    const category = (product.category || "").toLowerCase();
+    const description = (product.description || "").toLowerCase();
+    
+    let compText = "";
+    if (Array.isArray(product.compatibility)) {
+      compText = product.compatibility.map(c => `${c.make || ''} ${c.model || ''} ${c.years || ''}`).join(" ").toLowerCase();
+    } else if (typeof product.compatibility === "string") {
+      compText = product.compatibility.toLowerCase();
+    }
+    
+    const combinedText = `${name} ${brand} ${category} ${description} ${compText}`;
+
+    // 1. Direct substring match (highest confidence)
+    if (combinedText.includes(cleanQuery)) return true;
+
+    // 2. Tokenize query into meaningful search words (split by spaces, dashes, slashes, commas, '&', '+')
+    const queryTokens = cleanQuery
+      .split(/[\s\-_/,&+]+/)
+      .map(t => t.trim())
+      .filter(t => t.length >= 2 && !["the", "for", "and", "with", "car", "auto", "part", "parts"].includes(t));
+
+    if (queryTokens.length === 0) {
+      return combinedText.includes(cleanQuery);
+    }
+
+    // Automotive domain synonyms and word stems mapping for similarity
+    const synonymMap = {
+      brake: ["brakes", "braking", "pad", "pads", "rotor", "rotors", "caliper", "calipers", "disc", "discs", "shoe", "shoes", "abs"],
+      brakes: ["brake", "braking", "pad", "pads", "rotor", "rotors", "caliper", "calipers", "disc", "discs", "shoe", "shoes"],
+      pad: ["pads", "brake", "brakes"],
+      pads: ["pad", "brake", "brakes"],
+      shock: ["shocks", "absorber", "absorbers", "strut", "struts", "damper", "dampers", "suspension"],
+      shocks: ["shock", "absorber", "absorbers", "strut", "struts", "suspension"],
+      absorber: ["absorbers", "shock", "shocks", "strut", "struts", "suspension"],
+      absorbers: ["absorber", "shock", "shocks", "strut", "struts", "suspension"],
+      radiator: ["radiators", "cooling", "coolant", "condenser", "fan", "engine"],
+      radiators: ["radiator", "cooling", "coolant", "condenser"],
+      battery: ["batteries", "accumulator", "power", "cell", "alternator"],
+      batteries: ["battery", "accumulator", "power", "cell", "alternator"],
+      oil: ["engine oil", "motor oil", "lubricant", "synthetic", "filter", "lube"],
+      engine: ["oil", "engine oil", "motor", "piston", "gasket", "cylinder"],
+      light: ["lights", "lighting", "headlight", "headlights", "lamp", "lamps", "bulb", "bulbs", "led", "taillight", "fog"],
+      lights: ["light", "lighting", "headlight", "headlights", "lamp", "lamps", "bulb", "bulbs", "led", "taillight", "fog"],
+      lighting: ["light", "lights", "headlight", "headlights", "lamp", "lamps", "bulb", "bulbs", "led"],
+      wiper: ["wipers", "blade", "blades", "windshield", "washer"],
+      wipers: ["wiper", "blade", "blades", "windshield", "washer"],
+      tire: ["tires", "tyre", "tyres", "wheel", "wheels", "rim", "rims"],
+      tires: ["tire", "tyre", "tyres", "wheel", "wheels", "rim", "rims"],
+      wheel: ["wheels", "tire", "tires", "rim", "rims", "steering"],
+      wheels: ["wheel", "tire", "tires", "rim", "rims", "steering"],
+      joint: ["joints", "ball joint", "balljoint", "balljoints", "suspension", "arm", "bushing"],
+      joints: ["joint", "ball joint", "balljoint", "balljoints", "suspension", "arm", "bushing"],
+      ball: ["ball joint", "balljoint", "joints", "joint"],
+      steering: ["steering wheel", "rack", "pinion", "column", "wheel"],
+      filter: ["filters", "filtration", "air filter", "oil filter", "cabin", "fuel filter"],
+      filters: ["filter", "filtration", "air filter", "oil filter", "cabin", "fuel filter"],
+      condenser: ["condensers", "ac", "air condition", "compressor", "cooling", "radiator"],
+      condensers: ["condenser", "ac", "air condition", "compressor", "cooling"],
+      suspension: ["spring", "springs", "shock", "shocks", "strut", "struts", "arm", "bushing", "link"]
+    };
+
+    // Helper to stem simple English plurals: "batteries" -> "battery", "pads" -> "pad", "brakes" -> "brake"
+    const getStem = (w) => {
+      if (w.endsWith("ies")) return w.slice(0, -3) + "y";
+      if (w.endsWith("es") && w.length > 4) return w.slice(0, -2);
+      if (w.endsWith("s") && !w.endsWith("ss") && w.length > 3) return w.slice(0, -1);
+      if (w.endsWith("ing") && w.length > 5) return w.slice(0, -3);
+      return w;
+    };
+
+    // Check how many query tokens match or are similar
+    let matchCount = 0;
+    for (const token of queryTokens) {
+      const stem = getStem(token);
+      
+      // Check direct token or stem in combined text
+      let tokenMatched = combinedText.includes(token) || combinedText.includes(stem);
+
+      // Check automotive synonyms
+      if (!tokenMatched) {
+        const syns = synonymMap[token] || synonymMap[stem] || [];
+        for (const syn of syns) {
+          if (combinedText.includes(syn) || combinedText.includes(getStem(syn))) {
+            tokenMatched = true;
+            break;
+          }
+        }
+      }
+
+      // Check partial word prefix match in product name / brand / category
+      if (!tokenMatched && token.length >= 4) {
+        const prefix = token.slice(0, 4);
+        if (name.includes(prefix) || category.includes(prefix) || brand.includes(prefix)) {
+          tokenMatched = true;
+        }
+      }
+
+      if (tokenMatched) {
+        matchCount++;
+      }
+    }
+
+    return matchCount > 0;
+  }
+
   // Global search autocomplete system
   handleSearchInput(e) {
     this.searchQuery = e.target.value.toLowerCase().trim();
@@ -1092,19 +1286,9 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    // Filter matching parts/accessories names or compatibility matching
+    // Filter matching parts/accessories names or compatibility matching with similarity matcher
     const matches = this.products.filter(p => {
-      const matchName = p.name.toLowerCase().includes(this.searchQuery);
-      const matchBrand = p.brand.toLowerCase().includes(this.searchQuery);
-      const matchCat = p.category.toLowerCase().includes(this.searchQuery);
-      let matchVehicle = false;
-      if (Array.isArray(p.compatibility)) {
-        matchVehicle = p.compatibility.some(c => 
-          c.make.toLowerCase().includes(this.searchQuery) || 
-          c.model.toLowerCase().includes(this.searchQuery)
-        );
-      }
-      return p.status === "Live" && (matchName || matchBrand || matchCat || matchVehicle);
+      return p.status === "Live" && this.matchesSearchQuery(p, this.searchQuery);
     }).slice(0, 6);
 
     if (matches.length === 0) {
@@ -1134,6 +1318,404 @@ class AbbosseyOkaiApp {
     dropdown.style.display = "block";
   }
 
+  // ─── URL State Sync & History Management ───────────────────
+  initUrlStateSync() {
+    // Restore filters from URL parameters on first load
+    this.restoreFiltersFromUrl();
+
+    // Listen for browser Back/Forward popstate events
+    window.addEventListener("popstate", () => {
+      this.restoreFiltersFromUrl({ fromPopState: true });
+    });
+  }
+
+  syncUrlState(replace = false) {
+    try {
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams();
+
+      // Category
+      const cat = this.activeFilters.partsCategory || this.activeFilters.accessoryCategory;
+      if (cat) params.set("category", cat);
+
+      // Type
+      if (this.activeMainType && this.activeMainType !== "all") {
+        params.set("type", this.activeMainType);
+      }
+
+      // Price Range (minPrice / maxPrice)
+      if (this.activeFilters.priceMin !== null && !isNaN(this.activeFilters.priceMin) && this.activeFilters.priceMin > 0) {
+        params.set("minPrice", Math.round(this.activeFilters.priceMin));
+      }
+      if (this.activeFilters.priceMax !== null && !isNaN(this.activeFilters.priceMax) && this.activeFilters.priceMax > 0) {
+        params.set("maxPrice", Math.round(this.activeFilters.priceMax));
+      }
+
+      // Conditions
+      if (this.activeFilters.conditions && this.activeFilters.conditions.length > 0) {
+        params.set("condition", this.activeFilters.conditions.join(","));
+      }
+
+      // Brands
+      if (this.activeFilters.brands && this.activeFilters.brands.length > 0) {
+        params.set("brand", this.activeFilters.brands.join(","));
+      }
+
+      // Vehicle fitment
+      if (this.activeFilters.make) params.set("make", this.activeFilters.make);
+      if (this.activeFilters.model) params.set("model", this.activeFilters.model);
+      if (this.activeFilters.year) params.set("year", this.activeFilters.year);
+
+      // Search Query
+      if (this.searchQuery && this.searchQuery.trim()) {
+        params.set("search", this.searchQuery.trim());
+      }
+
+      // Sort Option
+      if (this.sortOption && this.sortOption !== "popular") {
+        params.set("sort", this.sortOption);
+      }
+
+      const qs = params.toString();
+      const newUrl = `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`;
+
+      if (replace) {
+        window.history.replaceState({ filters: { ...this.activeFilters } }, "", newUrl);
+      } else if (window.location.search !== (qs ? `?${qs}` : "")) {
+        window.history.pushState({ filters: { ...this.activeFilters } }, "", newUrl);
+      }
+    } catch (err) {
+      console.warn("Could not sync URL state:", err);
+    }
+  }
+
+  restoreFiltersFromUrl(opts = {}) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.toString() && !opts.fromPopState) return;
+
+      // Price min/max
+      const rawMin = params.get("minPrice") || params.get("price_min") || params.get("min");
+      const rawMax = params.get("maxPrice") || params.get("price_max") || params.get("max");
+
+      let min = rawMin ? parseFloat(rawMin) : null;
+      let max = rawMax ? parseFloat(rawMax) : null;
+
+      if (min !== null && (isNaN(min) || min < 0)) min = null;
+      if (max !== null && (isNaN(max) || max < 0)) max = null;
+
+      // Swap if min > max
+      if (min !== null && max !== null && min > max) {
+        const temp = min; min = max; max = temp;
+      }
+
+      this.activeFilters.priceMin = min;
+      this.activeFilters.priceMax = max;
+
+      const minInput = document.getElementById("price-min");
+      const maxInput = document.getElementById("price-max");
+      if (minInput) minInput.value = min !== null ? min : "";
+      if (maxInput) maxInput.value = max !== null ? max : "";
+
+      // Category
+      const cat = params.get("category");
+      if (cat) {
+        this.activeFilters.partsCategory = cat;
+        const partsCatSelect = document.getElementById("select-parts-category");
+        if (partsCatSelect) partsCatSelect.value = cat;
+      }
+
+      // Type
+      const type = params.get("type");
+      if (type && ["parts", "accessories"].includes(type)) {
+        this.activeMainType = type;
+        const partsNav = document.getElementById("nav-parts");
+        const accNav = document.getElementById("nav-accessories");
+        if (type === "parts" && partsNav) { partsNav.classList.add("active"); accNav?.classList.remove("active"); }
+        if (type === "accessories" && accNav) { accNav.classList.add("active"); partsNav?.classList.remove("active"); }
+      }
+
+      // Conditions
+      const conditionParam = params.get("condition");
+      if (conditionParam) {
+        const conditions = conditionParam.split(",").map(c => c.trim()).filter(Boolean);
+        this.activeFilters.conditions = conditions;
+        document.querySelectorAll(".condition-filter-checkbox").forEach(cb => {
+          cb.checked = conditions.includes(cb.value);
+        });
+      }
+
+      // Brands
+      const brandParam = params.get("brand");
+      if (brandParam) {
+        const brands = brandParam.split(",").map(b => b.trim()).filter(Boolean);
+        this.activeFilters.brands = brands;
+        document.querySelectorAll(".brand-filter-checkbox").forEach(cb => {
+          cb.checked = brands.includes(cb.value);
+        });
+      }
+
+      // Vehicle
+      const make = params.get("make");
+      const model = params.get("model");
+      const year = params.get("year");
+      if (make) {
+        this.activeFilters.make = make;
+        const makeSelect = document.getElementById("select-vehicle-make");
+        if (makeSelect) makeSelect.value = make;
+      }
+      if (model) {
+        this.activeFilters.model = model;
+        const modelSelect = document.getElementById("select-vehicle-model");
+        if (modelSelect) {
+          modelSelect.value = model;
+          modelSelect.disabled = false;
+        }
+      }
+      if (year) {
+        this.activeFilters.year = year;
+        const yearSelect = document.getElementById("select-vehicle-year");
+        if (yearSelect) {
+          yearSelect.value = year;
+          yearSelect.disabled = false;
+        }
+      }
+
+      // Search Query
+      const search = params.get("search");
+      if (search) {
+        this.searchQuery = search.toLowerCase().trim();
+        const searchInput = document.getElementById("main-search-input");
+        if (searchInput) searchInput.value = search;
+      }
+
+      // Sort
+      const sort = params.get("sort");
+      if (sort) {
+        this.sortOption = sort;
+        const sortSelect = document.getElementById("catalog-sort-select");
+        if (sortSelect) sortSelect.value = sort;
+      }
+
+      // Re-render
+      this.renderCatalog();
+    } catch (e) {
+      console.warn("Could not restore filters from URL:", e);
+    }
+  }
+
+  // ─── Price Range Events & Debounce Handling ───────────────────
+  setupPriceRangeEvents() {
+    const minInput = document.getElementById("price-min");
+    const maxInput = document.getElementById("price-max");
+
+    if (minInput) {
+      minInput.addEventListener("input", () => this.onPriceInputDebounced());
+      minInput.addEventListener("blur", () => this.applyPriceFilter({ replaceUrl: false }));
+      minInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.applyPriceFilter({ replaceUrl: false });
+        }
+      });
+    }
+
+    if (maxInput) {
+      maxInput.addEventListener("input", () => this.onPriceInputDebounced());
+      maxInput.addEventListener("blur", () => this.applyPriceFilter({ replaceUrl: false }));
+      maxInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.applyPriceFilter({ replaceUrl: false });
+        }
+      });
+    }
+  }
+
+  onPriceInputDebounced() {
+    if (this.priceDebounceTimer) clearTimeout(this.priceDebounceTimer);
+    this.priceDebounceTimer = setTimeout(() => {
+      this.applyPriceFilter({ replaceUrl: true });
+    }, 350);
+  }
+
+  applyPriceFilter(opts = { replaceUrl: false }) {
+    const minEl = document.getElementById("price-min");
+    const maxEl = document.getElementById("price-max");
+    if (!minEl || !maxEl) return;
+
+    let min = minEl.value.trim() !== "" ? parseFloat(minEl.value) : null;
+    let max = maxEl.value.trim() !== "" ? parseFloat(maxEl.value) : null;
+
+    if (min !== null && (isNaN(min) || min < 0)) min = 0;
+    if (max !== null && (isNaN(max) || max < 0)) max = 0;
+
+    // Edge case: if min > max and both are valid, swap them
+    if (min !== null && max !== null && min > max) {
+      const temp = min;
+      min = max;
+      max = temp;
+      minEl.value = min;
+      maxEl.value = max;
+    }
+
+    this.activeFilters.priceMin = min;
+    this.activeFilters.priceMax = max;
+
+    this.syncUrlState(opts.replaceUrl);
+    this.renderCatalog();
+    this.fetchFilteredProductsBackend();
+  }
+
+  clearPriceFilter() {
+    const minEl = document.getElementById("price-min");
+    const maxEl = document.getElementById("price-max");
+    if (minEl) minEl.value = "";
+    if (maxEl) maxEl.value = "";
+
+    this.activeFilters.priceMin = null;
+    this.activeFilters.priceMax = null;
+
+    this.syncUrlState(false);
+    this.renderCatalog();
+    this.fetchFilteredProductsBackend();
+  }
+
+  setPricePreset(min, max) {
+    const minEl = document.getElementById("price-min");
+    const maxEl = document.getElementById("price-max");
+
+    if (minEl) minEl.value = min !== "" && min !== null ? min : "";
+    if (maxEl) maxEl.value = max !== "" && max !== null ? max : "";
+
+    this.applyPriceFilter({ replaceUrl: false });
+  }
+
+  // ─── AbortController Request Handling ──────────────────────
+  async fetchFilteredProductsBackend() {
+    // Abort previous in-flight search/filter request if active
+    if (this.productAbortController) {
+      this.productAbortController.abort();
+    }
+    this.productAbortController = new AbortController();
+
+    try {
+      const params = new URLSearchParams();
+      const statusParam = (this.isAdminLoggedIn || this.isMerchantLoggedIn) ? "all" : "Live";
+      params.set("status", statusParam);
+      params.set("limit", "150");
+
+      if (this.activeMainType && this.activeMainType !== "all") params.set("type", this.activeMainType);
+      const cat = this.activeFilters.partsCategory || this.activeFilters.accessoryCategory;
+      if (cat) params.set("category", cat);
+      if (this.activeFilters.priceMin !== null) params.set("minPrice", this.activeFilters.priceMin);
+      if (this.activeFilters.priceMax !== null) params.set("maxPrice", this.activeFilters.priceMax);
+      if (this.activeFilters.brands && this.activeFilters.brands.length === 1) params.set("brand", this.activeFilters.brands[0]);
+      if (this.searchQuery) params.set("search", this.searchQuery);
+
+      const res = await fetch(`${API_BASE}/api/products?${params.toString()}`, {
+        signal: this.productAbortController.signal
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.facets) {
+          this.backendFacets = data.facets;
+        }
+      }
+    } catch (err) {
+      if (err.name === "AbortError") {
+        // Request cancelled by newer filter change — silently ignore
+        return;
+      }
+      console.warn("Backend price filter fetch error:", err);
+    }
+  }
+
+  // ─── Price Facet Aggregations & Distribution Histogram ───────
+  updatePriceHistogramAndFacets(filteredProducts = []) {
+    // 1. Update live count badge
+    const badge = document.getElementById("price-range-count-badge");
+    if (badge) {
+      const isPriceActive = this.activeFilters.priceMin !== null || this.activeFilters.priceMax !== null;
+      if (isPriceActive) {
+        badge.textContent = `${filteredProducts.length} in range`;
+        badge.classList.add("visible");
+      } else {
+        badge.textContent = `${this.products.filter(p => p.status === 'Live').length} items`;
+        badge.classList.remove("visible");
+      }
+    }
+
+    // 2. Update active state of preset chips
+    const chips = document.querySelectorAll(".price-preset-chip");
+    const curMin = this.activeFilters.priceMin;
+    const curMax = this.activeFilters.priceMax;
+
+    chips.forEach(chip => {
+      const chipMin = chip.getAttribute("data-min");
+      const chipMax = chip.getAttribute("data-max");
+
+      const matchMin = (chipMin === "" && (curMin === null || curMin === 0)) || (parseFloat(chipMin) === curMin);
+      const matchMax = (chipMax === "" && curMax === null) || (parseFloat(chipMax) === curMax);
+
+      if (chipMin === "" && chipMax === "" && curMin === null && curMax === null) {
+        chip.classList.add("active");
+      } else if (chipMin !== "" || chipMax !== "") {
+        if (matchMin && matchMax) {
+          chip.classList.add("active");
+        } else {
+          chip.classList.remove("active");
+        }
+      } else {
+        chip.classList.remove("active");
+      }
+    });
+
+    // 3. Render 14-bucket mini density histogram
+    const histogramContainer = document.getElementById("histogram-bars");
+    if (!histogramContainer) return;
+
+    const liveProducts = this.products.filter(p => p.status === "Live");
+    if (liveProducts.length === 0) {
+      histogramContainer.innerHTML = "";
+      return;
+    }
+
+    const prices = liveProducts.map(p => p.price).filter(pr => typeof pr === "number" && !isNaN(pr));
+    const minCatalog = 0;
+    const maxCatalog = Math.max(...prices, 5000);
+    const numBuckets = 14;
+    const bucketStep = maxCatalog / numBuckets;
+    const buckets = new Array(numBuckets).fill(0);
+
+    prices.forEach(pr => {
+      const idx = Math.min(Math.floor(pr / bucketStep), numBuckets - 1);
+      if (idx >= 0) buckets[idx]++;
+    });
+
+    const maxCount = Math.max(...buckets, 1);
+    histogramContainer.innerHTML = "";
+
+    buckets.forEach((count, i) => {
+      const bucketStart = i * bucketStep;
+      const bucketEnd = (i + 1) * bucketStep;
+      const heightPercent = Math.max(12, Math.round((count / maxCount) * 100));
+
+      const bar = document.createElement("div");
+      bar.className = "histogram-bar";
+      bar.style.height = `${heightPercent}%`;
+      bar.title = `GHS ${Math.round(bucketStart)} - ${Math.round(bucketEnd)}: ${count} products`;
+
+      const isInRange = (curMin === null || bucketEnd >= curMin) && (curMax === null || bucketStart <= curMax);
+      if (isInRange) {
+        bar.classList.add("in-range");
+      }
+
+      histogramContainer.appendChild(bar);
+    });
+  }
+
   // Sidebar Filter checks & controls
   onFilterChange() {
     // Retrieve Conditions
@@ -1141,10 +1723,10 @@ class AbbosseyOkaiApp {
     this.activeFilters.conditions = checkedConditions;
 
     // Retrieve Prices
-    const minPrice = document.getElementById("price-min").value;
-    const maxPrice = document.getElementById("price-max").value;
-    this.activeFilters.priceMin = minPrice ? parseFloat(minPrice) : null;
-    this.activeFilters.priceMax = maxPrice ? parseFloat(maxPrice) : null;
+    const minPrice = document.getElementById("price-min")?.value;
+    const maxPrice = document.getElementById("price-max")?.value;
+    this.activeFilters.priceMin = minPrice && minPrice.trim() !== "" ? parseFloat(minPrice) : null;
+    this.activeFilters.priceMax = maxPrice && maxPrice.trim() !== "" ? parseFloat(maxPrice) : null;
 
     // Retrieve Merchant types
     const merchantTypes = Array.from(document.querySelectorAll(".merchant-type-filter:checked")).map(el => el.value);
@@ -1154,22 +1736,30 @@ class AbbosseyOkaiApp {
     const brands = Array.from(document.querySelectorAll(".brand-filter-checkbox:checked")).map(el => el.value);
     this.activeFilters.brands = brands;
 
+    this.syncUrlState();
     this.renderCatalog();
+    this.fetchFilteredProductsBackend();
   }
 
   resetAllFilters() {
     document.querySelectorAll(".condition-filter-checkbox, .merchant-type-filter, .brand-filter-checkbox").forEach(cb => cb.checked = false);
-    document.getElementById("price-min").value = "";
-    document.getElementById("price-max").value = "";
+    const minEl = document.getElementById("price-min");
+    const maxEl = document.getElementById("price-max");
+    if (minEl) minEl.value = "";
+    if (maxEl) maxEl.value = "";
     
     // Clear hero search filters also
-    document.getElementById("select-vehicle-make").value = "";
-    document.getElementById("select-vehicle-model").value = "";
-    document.getElementById("select-vehicle-model").disabled = true;
-    document.getElementById("select-vehicle-year").value = "";
-    document.getElementById("select-vehicle-year").disabled = true;
-    document.getElementById("select-parts-category").value = "";
-    document.getElementById("main-search-input").value = "";
+    const makeSelect = document.getElementById("select-vehicle-make");
+    const modelSelect = document.getElementById("select-vehicle-model");
+    const yearSelect = document.getElementById("select-vehicle-year");
+    const catSelect = document.getElementById("select-parts-category");
+    const searchInput = document.getElementById("main-search-input");
+
+    if (makeSelect) makeSelect.value = "";
+    if (modelSelect) { modelSelect.value = ""; modelSelect.disabled = true; }
+    if (yearSelect) { yearSelect.value = ""; yearSelect.disabled = true; }
+    if (catSelect) catSelect.value = "";
+    if (searchInput) searchInput.value = "";
     
     document.querySelectorAll(".accessory-cat-card").forEach(c => c.classList.remove("active"));
     
@@ -1177,18 +1767,27 @@ class AbbosseyOkaiApp {
     this.activeMainType = "all";
     this.selectedAccessoryCat = null;
     
-    document.getElementById("nav-parts").classList.remove("active");
-    document.getElementById("nav-accessories").classList.remove("active");
+    const partsNav = document.getElementById("nav-parts");
+    const accNav = document.getElementById("nav-accessories");
+    if (partsNav) partsNav.classList.remove("active");
+    if (accNav) accNav.classList.remove("active");
 
     this.activeFilters = {
       conditions: [],
       priceMin: null,
       priceMax: null,
       merchantTypes: [],
-      brands: []
+      brands: [],
+      make: "",
+      model: "",
+      year: "",
+      partsCategory: "",
+      accessoryCategory: ""
     };
 
+    this.syncUrlState();
     this.renderCatalog();
+    this.fetchFilteredProductsBackend();
     this.showToast("All marketplace filters reset", "success");
   }
 
@@ -1196,34 +1795,46 @@ class AbbosseyOkaiApp {
     this.activeMainType = type;
     this.selectedAccessoryCat = null;
     this.searchQuery = "";
-    document.getElementById("main-search-input").value = "";
+    const searchInput = document.getElementById("main-search-input");
+    if (searchInput) searchInput.value = "";
     
     const partsNav = document.getElementById("nav-parts");
     const accNav = document.getElementById("nav-accessories");
 
     if (type === "parts") {
-      partsNav.classList.add("active");
-      accNav.classList.remove("active");
+      if (partsNav) partsNav.classList.add("active");
+      if (accNav) accNav.classList.remove("active");
       this.setSearchMode("parts");
     } else if (type === "accessories") {
-      partsNav.classList.remove("active");
-      accNav.classList.add("active");
+      if (partsNav) partsNav.classList.remove("active");
+      if (accNav) accNav.classList.add("active");
       this.setSearchMode("accessories");
     } else {
-      partsNav.classList.remove("active");
-      accNav.classList.remove("active");
+      if (partsNav) partsNav.classList.remove("active");
+      if (accNav) accNav.classList.remove("active");
     }
 
     // Scroll to products and render
+    this.syncUrlState();
     this.renderCatalog();
     this.scrollToMarketplace();
   }
 
-  // Filter catalog by a specific part category (from Shop by Category strip)
+  // Filter catalog by a specific popular part name (from Popular Parts strip)
   filterByCategory(category) {
     this.activeMainType = "parts";
-    this.activeFilters.partsCategory = category;
-    this.searchQuery = "";
+    this.activeFilters.partsCategory = ""; // Clear strict category filter so similar products match
+    this.activeFilters.make = "";
+    this.activeFilters.model = "";
+    this.activeFilters.year = "";
+    this.activeFilters.brands = [];
+    this.searchQuery = category.toLowerCase().trim();
+
+    // Populate search input with the selected popular part name
+    const searchInput = document.getElementById("main-search-input");
+    if (searchInput) {
+      searchInput.value = category;
+    }
 
     const partsNav = document.getElementById("nav-parts");
     const accNav = document.getElementById("nav-accessories");
@@ -1232,7 +1843,7 @@ class AbbosseyOkaiApp {
 
     this.renderCatalog();
     this.scrollToMarketplace();
-    this.showToast(`Showing "${category}" parts`, "success");
+    this.showToast(`Showing "${category}" & related parts`, "success");
   }
 
   // Filter catalog by a specific brand (from Shop by Brand strip)
@@ -1283,26 +1894,38 @@ class AbbosseyOkaiApp {
 
       // Filter by vehicle selector parameters (Mode A parts)
       if (this.activeMainType === "parts" && this.activeFilters.make) {
-        if (!Array.isArray(p.compatibility)) return false;
-        const fits = p.compatibility.some(c => {
-          const makeMatch = c.make === this.activeFilters.make;
-          const modelMatch = !this.activeFilters.model || c.model === this.activeFilters.model;
-          
-          let yearMatch = true;
-          if (this.activeFilters.year) {
-            const range = c.years.split("-");
-            if (range.length === 1) {
-              yearMatch = range[0] === this.activeFilters.year;
-            } else {
-              const start = parseInt(range[0]);
-              const end = parseInt(range[1]);
-              const target = parseInt(this.activeFilters.year);
-              yearMatch = target >= start && target <= end;
+        const makeFilterLower = this.activeFilters.make.toLowerCase();
+        const brandMatch = (p.brand || "").toLowerCase() === makeFilterLower;
+        const isUniversal = p.compatibility === "Universal Fit" || p.compatibility_text === "Universal Fit";
+        
+        let compFits = false;
+        if (Array.isArray(p.compatibility) && p.compatibility.length > 0) {
+          compFits = p.compatibility.some(c => {
+            const makeMatch = (c.make || "").toLowerCase() === makeFilterLower;
+            const modelMatch = !this.activeFilters.model || 
+              (c.model || "").toLowerCase().includes(this.activeFilters.model.toLowerCase()) || 
+              this.activeFilters.model.toLowerCase().includes((c.model || "").toLowerCase());
+            
+            let yearMatch = true;
+            if (this.activeFilters.year) {
+              const yr = (c.years || "").trim();
+              if (yr === "All Years" || !yr) {
+                yearMatch = true;
+              } else if (yr.includes("-")) {
+                const range = yr.split("-");
+                const start = parseInt(range[0]);
+                const end = parseInt(range[1]);
+                const target = parseInt(this.activeFilters.year);
+                yearMatch = !isNaN(start) && !isNaN(end) && !isNaN(target) ? (target >= start && target <= end) : true;
+              } else {
+                yearMatch = yr.includes(this.activeFilters.year);
+              }
             }
-          }
-          return makeMatch && modelMatch && yearMatch;
-        });
-        if (!fits) return false;
+            return makeMatch && modelMatch && yearMatch;
+          });
+        }
+        
+        if (!compFits && !brandMatch && !isUniversal) return false;
       }
 
       if (this.activeMainType === "parts" && this.activeFilters.partsCategory) {
@@ -1314,16 +1937,9 @@ class AbbosseyOkaiApp {
         if (p.category !== this.activeFilters.accessoryCategory) return false;
       }
 
-      // Filter by Search text query
-      if (this.searchQuery) {
-        const text = `${p.name} ${p.brand} ${p.category} ${p.description}`.toLowerCase();
-        let compatibilityText = "";
-        if (Array.isArray(p.compatibility)) {
-          compatibilityText = p.compatibility.map(c => `${c.make} ${c.model}`).join(" ").toLowerCase();
-        } else {
-          compatibilityText = "universal";
-        }
-        if (!text.includes(this.searchQuery) && !compatibilityText.includes(this.searchQuery)) return false;
+      // Filter by Search text query using smart word/stem similarity matching
+      if (this.searchQuery && !this.matchesSearchQuery(p, this.searchQuery)) {
+        return false;
       }
 
       // Advanced filters (Conditions)
@@ -1359,7 +1975,7 @@ class AbbosseyOkaiApp {
       filtered.sort((a, b) => b.price - a.price);
     } else if (this.sortOption === "newest") {
       // Simulating newest using indices/IDs
-      filtered.sort((a, b) => b.id.localeCompare(a.id));
+      filtered.sort((a, b) => String(b.id).localeCompare(String(a.id)));
     } else {
       // Default Popular (Verified first, in-stock first)
       filtered.sort((a, b) => {
@@ -1371,16 +1987,30 @@ class AbbosseyOkaiApp {
       });
     }
 
+    // Update price histogram distribution & live facet count badge
+    this.updatePriceHistogramAndFacets(filtered);
+
     // Render count
-    document.getElementById("catalog-results-count").textContent = `Showing ${filtered.length} product${filtered.length === 1 ? "" : "s"}`;
+    const countEl = document.getElementById("catalog-results-count");
+    if (countEl) {
+      countEl.textContent = `Showing ${filtered.length} product${filtered.length === 1 ? "" : "s"}`;
+    }
 
     if (filtered.length === 0) {
+      const isPriceActive = this.activeFilters.priceMin !== null || this.activeFilters.priceMax !== null;
+      const priceText = isPriceActive 
+        ? `in price range ${this.activeFilters.priceMin !== null ? `GHS ${this.activeFilters.priceMin}` : 'GHS 0'} – ${this.activeFilters.priceMax !== null ? `GHS ${this.activeFilters.priceMax}` : 'Above'}`
+        : '';
+
       container.innerHTML = `
         <div class="empty-catalog" id="catalog-empty-view">
-          <span class="empty-icon"><i class="fa-solid fa-face-frown"></i></span>
-          <h3>No Listings Found</h3>
-          <p>Try modifying your advanced search inputs or clearing the active filters.</p>
-          <button class="btn btn-secondary" onclick="app.resetAllFilters()">Reset Filters</button>
+          <span class="empty-icon"><i class="fa-solid fa-tags"></i></span>
+          <h3>No Listings Found ${priceText ? `<small style="display:block; font-size:0.9rem; color:var(--text-muted); margin-top:0.4rem;">${priceText}</small>` : ''}</h3>
+          <p>Try broadening your price range or clearing the active filters.</p>
+          <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:1rem;">
+            ${isPriceActive ? `<button class="btn btn-primary" onclick="app.clearPriceFilter()">Clear Price Filter</button>` : ''}
+            <button class="btn btn-secondary" onclick="app.resetAllFilters()">Reset All Filters</button>
+          </div>
         </div>
       `;
       return;
@@ -1402,7 +2032,15 @@ class AbbosseyOkaiApp {
       // Compatibility subtitle rendering
       let compatibilityLabel = "";
       if (Array.isArray(p.compatibility)) {
-        compatibilityLabel = p.compatibility.map(c => `${c.make} ${c.model}`).join(", ");
+        compatibilityLabel = p.compatibility.map(c => {
+          const make = (c.make || "").trim();
+          const model = (c.model || "").trim();
+          // Avoid duplicating the make if the model string already starts with it
+          if (make && model.toLowerCase().startsWith(make.toLowerCase())) {
+            return model;
+          }
+          return `${make} ${model}`.trim();
+        }).join(", ");
       } else {
         compatibilityLabel = p.compatibility;
       }
@@ -1493,54 +2131,100 @@ class AbbosseyOkaiApp {
 
   // PDP Opening Details Overlay
   openPdp(id) {
-    const p = this.products.find(item => item.id === id);
+    const p = this.products.find(item => item.id == id || String(item.id) === String(id));
     if (!p) return;
 
     this.activePdpProduct = p;
     this.activePdpImageIndex = 0;
 
     // Set textual properties
-    document.getElementById("pdp-title-text").textContent = p.name;
-    document.getElementById("pdp-category-text").textContent = p.category;
-    document.getElementById("pdp-price-text").textContent = `₵${p.price}.00`;
+    const titleEl = document.getElementById("pdp-title-text");
+    if (titleEl) titleEl.textContent = p.name;
+    const catEl = document.getElementById("pdp-category-text");
+    if (catEl) catEl.textContent = p.category;
+    const priceEl = document.getElementById("pdp-price-text");
+    if (priceEl) priceEl.textContent = `₵${p.price}.00`;
     
     // Condition Badges
     const conditionBadge = document.getElementById("pdp-badge-condition");
-    conditionBadge.className = "badge " + (p.condition === "New" ? "badge-new" : (p.condition === "Used" ? "badge-used" : "badge-refurbished"));
-    conditionBadge.textContent = p.condition;
+    if (conditionBadge) {
+      conditionBadge.className = "badge " + (p.condition === "New" ? "badge-new" : (p.condition === "Used" ? "badge-used" : "badge-refurbished"));
+      conditionBadge.textContent = p.condition;
+    }
 
     // Stock Badges
     const stockBadge = document.getElementById("pdp-badge-stock");
-    stockBadge.className = "badge " + (p.stock === "In Stock" ? "badge-instock" : "badge-oos");
-    stockBadge.textContent = p.stock;
+    if (stockBadge) {
+      stockBadge.className = "badge " + (p.stock === "In Stock" ? "badge-instock" : "badge-oos");
+      stockBadge.textContent = p.stock;
+    }
 
     // Compatibility
     const fitmentList = document.getElementById("pdp-fitment-list");
-    fitmentList.innerHTML = "";
-    if (Array.isArray(p.compatibility)) {
-      p.compatibility.forEach(c => {
-        fitmentList.innerHTML += `<span class="compatibility-item">${c.make} ${c.model} (${c.years})</span>`;
-      });
-    } else {
-      fitmentList.innerHTML = `<span class="compatibility-item" style="background-color: #ECEFEE; color: #1E6B54; border: 1px solid rgba(30,107,84,0.15); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Universal Fit</span>`;
+    if (fitmentList) {
+      fitmentList.innerHTML = "";
+      if (Array.isArray(p.compatibility) && p.compatibility.length > 0) {
+        p.compatibility.forEach(c => {
+          const make = (c.make || '').trim();
+          const model = (c.model || '').trim();
+          const label = (make && model.toLowerCase().startsWith(make.toLowerCase())) ? model : `${make} ${model}`.trim();
+          fitmentList.innerHTML += `<span class="compatibility-item">${label} (${c.years || ''})</span>`;
+        });
+      } else {
+        const compLabel = typeof p.compatibility === "string" ? p.compatibility : "Universal Fit";
+        fitmentList.innerHTML = `<span class="compatibility-item" style="background-color: #ECEFEE; color: #1E6B54; border: 1px solid rgba(30,107,84,0.15); font-weight:700;"><i class="fa-solid fa-circle-check"></i> ${compLabel}</span>`;
+      }
     }
 
-    // Dealer profile card mapping
-    document.getElementById("pdp-merchant-avatar").textContent = p.merchant.shopName.charAt(0).toUpperCase();
-    document.getElementById("pdp-merchant-name").textContent = p.merchant.shopName;
-    document.getElementById("pdp-merchant-since").textContent = `Member since ${p.merchant.since || '2024'}`;
-    document.getElementById("pdp-merchant-location").querySelector("span").textContent = p.merchant.location;
+    // Dealer profile card mapping (resolve from live merchants list or product snapshot)
+    let shopName = (p.merchant && (p.merchant.shopName || p.merchant.shop_name)) || "Abossey Okai Merchant";
+    let shopSince = (p.merchant && p.merchant.since) || "2024";
+    let shopLoc = (p.merchant && p.merchant.location) || "Abossey Okai, Accra";
+    let shopVer = (p.merchant && p.merchant.verified) || false;
+
+    // Check if live merchant profile exists with updated admin settings
+    if (Array.isArray(this.merchants) && this.merchants.length > 0) {
+      const liveMerchant = this.merchants.find(m => 
+        (p.merchant_id && m.id === p.merchant_id) || 
+        (p.merchant && p.merchant.id && m.id === p.merchant.id) ||
+        (m.shopName && shopName && m.shopName.toLowerCase() === shopName.toLowerCase())
+      );
+      if (liveMerchant) {
+        shopName = liveMerchant.shopName || shopName;
+        shopSince = liveMerchant.since || shopSince;
+        shopLoc = liveMerchant.location || shopLoc;
+        shopVer = liveMerchant.verified ?? shopVer;
+      }
+    }
+
+    const avatarEl = document.getElementById("pdp-merchant-avatar");
+    if (avatarEl) avatarEl.textContent = shopName.charAt(0).toUpperCase();
+
+    const nameEl = document.getElementById("pdp-merchant-name");
+    if (nameEl) nameEl.textContent = shopName;
+
+    const sinceEl = document.getElementById("pdp-merchant-since");
+    if (sinceEl) sinceEl.textContent = `Member since ${shopSince}`;
+
+    const locEl = document.getElementById("pdp-merchant-location");
+    if (locEl) {
+      const span = locEl.querySelector("span");
+      if (span) span.textContent = shopLoc;
+    }
 
     // Verified badge
     const verifiedBadge = document.getElementById("pdp-merchant-verified-badge");
-    verifiedBadge.style.display = p.merchant.verified ? "inline-flex" : "none";
+    if (verifiedBadge) verifiedBadge.style.display = shopVer ? "inline-flex" : "none";
 
     // Set Gallery Images
     this.renderPdpGallery();
 
     // Show dynamic details sheet overlay modal
-    document.getElementById("pdp-overlay-modal").style.display = "flex";
-    document.body.style.overflow = "hidden"; // Disable body scrolls
+    const modal = document.getElementById("pdp-overlay-modal");
+    if (modal) {
+      modal.style.display = "flex";
+      document.body.style.overflow = "hidden"; // Disable body scrolls
+    }
   }
 
   closePdp() {
@@ -1618,34 +2302,119 @@ class AbbosseyOkaiApp {
     const p = this.activePdpProduct;
     if (!p) return;
 
-    const phone = p.merchant.phone;
-    const shopName = p.merchant.shopName;
-    const prodName = p.name;
-    const price = p.price;
+    // Resolve merchant profile with priority on latest DB/admin merchant list
+    let shopName = "Abossey Okai Merchant";
+    let rawPhone = "";
 
-    const templateText = `Hello ${shopName}, I am interested in your listing: ${prodName} priced at ${price} GHS on Abossey Okai Marketplace.`;
+    if (p.merchant) {
+      shopName = p.merchant.shopName || p.merchant.shop_name || shopName;
+      rawPhone = p.merchant.phone || "";
+    }
+
+    if (Array.isArray(this.merchants) && this.merchants.length > 0) {
+      const liveMerchant = this.merchants.find(m => 
+        (p.merchant_id && m.id === p.merchant_id) || 
+        (p.merchant && p.merchant.id && m.id === p.merchant.id) ||
+        (m.shopName && shopName && m.shopName.toLowerCase() === shopName.toLowerCase())
+      );
+      if (liveMerchant) {
+        if (liveMerchant.shopName) shopName = liveMerchant.shopName;
+        if (liveMerchant.phone) rawPhone = liveMerchant.phone;
+      }
+    }
+
+    if (!rawPhone) {
+      this.showToast("Merchant WhatsApp number is not configured.", "warning");
+      return;
+    }
+
+    // Clean and normalize phone number into standard international format for WhatsApp wa.me
+    let cleanPhone = String(rawPhone).replace(/[^0-9]/g, "");
+
+    // Strip leading international prefix zeros (00...)
+    if (cleanPhone.startsWith("00")) {
+      cleanPhone = cleanPhone.substring(2);
+    }
+
+    // Format local Ghana numbers (024... -> 23324..., or 9-digit 24... -> 23324...)
+    if (cleanPhone.startsWith("0") && cleanPhone.length === 10) {
+      cleanPhone = "233" + cleanPhone.substring(1);
+    } else if (cleanPhone.length === 9) {
+      cleanPhone = "233" + cleanPhone;
+    }
+
+    if (cleanPhone.length < 8) {
+      this.showToast("Invalid merchant phone number.", "error");
+      return;
+    }
+
+    const prodName = p.name || "Product";
+    const priceFormatted = typeof p.price === "number" ? p.price.toLocaleString() : (p.price || "0");
+
+    const templateText = `Hello ${shopName}, I saw your listing for "${prodName}" (₵${priceFormatted}) on Abossey Okai Marketplace. Is it still available?`;
     const encodedText = encodeURIComponent(templateText);
     
-    // Construct WhatsApp Deep link API
-    const whatsappUrl = `https://wa.me/${phone.replace(/[^0-9+]/g, "")}?text=${encodedText}`;
+    // Construct WhatsApp direct chat deep link
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
     
-    // Visual indicators
-    this.showToast(`Deep-linking to WhatsApp of ${shopName}...`, "success");
-    window.open(whatsappUrl, "_blank");
+    // Log WhatsApp lead to backend if API is available
+    if (p.id) {
+      try {
+        fetch(`${API_BASE}/api/products/${p.id}/lead`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "whatsapp" })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    // Track lead count locally
+    const currentLeads = parseInt(localStorage.getItem("ao_lead_whatsapp") || "0") + 1;
+    localStorage.setItem("ao_lead_whatsapp", currentLeads.toString());
+
+    this.showToast(`Opening WhatsApp chat with ${shopName}...`, "success");
+
+    // Directly open WhatsApp
+    const win = window.open(whatsappUrl, "_blank");
+    if (!win || win.closed || typeof win.closed === "undefined") {
+      window.location.href = whatsappUrl;
+    }
   }
 
   locateMerchantShop() {
     const p = this.activePdpProduct;
     if (!p) return;
 
-    const coords = p.merchant.coordinates;
-    const shopName = p.merchant.shopName;
+    const coords = p.merchant.coordinates || "5.5562, -0.2284";
+    const shopName = p.merchant.shopName || "Abossey Okai Merchant";
 
-    // Google Maps link constructor
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${coords}`;
-    
-    this.showToast(`Opening shop location of ${shopName} in Google Maps...`, "success");
-    window.open(mapsUrl, "_blank");
+    const parts = coords.split(",").map(s => parseFloat(s.trim()));
+    const lat = parts[0] || 5.5562;
+    const lng = parts[1] || -0.2284;
+
+    // Detect Apple / iOS devices
+    const isAppleDevice = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && (navigator.maxTouchPoints > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent));
+
+    let navUrl = "";
+    if (isAppleDevice) {
+      navUrl = `https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(shopName)}`;
+    } else {
+      navUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shopName + ', ' + coords)}`;
+    }
+
+    // Lead tracking
+    if (p.id) {
+      try {
+        fetch(`${API_BASE}/api/products/${p.id}/lead`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "maps" })
+        }).catch(() => {});
+      } catch {}
+    }
+
+    this.showToast(`Opening directions to ${shopName}...`, "success");
+    window.open(navUrl, "_blank");
   }
 
   reportListing() {
@@ -1778,45 +2547,95 @@ class AbbosseyOkaiApp {
     if (passwordView) passwordView.style.display = viewName === "admin-password" ? "block" : "none";
   }
 
-  handleGoogleSSOClick() {
-    this.showToast("Authenticating with Google Account...", "info");
-    fetch("http://localhost:3001/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "kofi@gmail.com", password: "merchant123" })
-    })
-    .then(res => res.json())
-    .then(data => {
+  async handleGoogleSSOClick() {
+    // Trigger Firebase Google Sign-In popup
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    this.showToast("Opening Google Sign-In...", "info");
+
+    try {
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider);
+      } catch (popupErr) {
+        // Fallback for browser IndexedDB "Database is closing/hidden" or internal-error
+        if ((popupErr.message && popupErr.message.includes("closing")) || popupErr.code === "auth/internal-error") {
+          console.warn("IndexedDB closing error encountered. Retrying with in-memory persistence...", popupErr);
+          await setPersistence(auth, inMemoryPersistence).catch(() => {});
+          result = await signInWithPopup(auth, provider);
+        } else {
+          throw popupErr;
+        }
+      }
+
+      const firebaseUser = result.user;
+
+      // Get the Firebase ID token to send to our backend
+      const idToken = await firebaseUser.getIdToken();
+
+      this.showToast("Verifying Google account...", "info");
+
+      const res = await fetch(`${API_BASE}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: idToken }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        this.showToast(data.error || "Google authentication failed", "error");
+        return;
+      }
+
       if (data.token) {
         localStorage.setItem("ao_jwt_token", data.token);
-        if (data.user && data.user.role === "merchant") {
+
+        if (data.user.role === "admin") {
+          this.isAdminLoggedIn = true;
+          this.isMerchantLoggedIn = false;
+          this.isCustomerLoggedIn = false;
+          this.saveMerchantProfileToStorage();
+          this.closeMerchantAuth();
+          this.switchAppView("admin-dashboard");
+          await this.loadBackendData();
+          this.showToast(`Welcome, Admin ${data.user.full_name || data.user.email}!`, "success");
+
+        } else if (data.user.role === "merchant" && data.merchantProfile) {
           this.isMerchantLoggedIn = true;
           this.isAdminLoggedIn = false;
           this.isCustomerLoggedIn = false;
-          this.merchantProfile = data.merchantProfile || this.merchants[0];
+          this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
           this.saveMerchantProfileToStorage();
           this.closeMerchantAuth();
           this.switchAppView("dashboard");
-          this.showToast(`Logged in with Google as ${this.merchantProfile.shopName}!`, "success");
+          await this.loadBackendData();
+          this.showToast(`Welcome back, ${data.merchantProfile.shop_name || "Merchant"}!`, "success");
+
         } else {
+          // Regular customer
           this.isCustomerLoggedIn = true;
           this.isMerchantLoggedIn = false;
           this.isAdminLoggedIn = false;
           this.saveMerchantProfileToStorage();
           this.closeMerchantAuth();
           this.switchAppView("storefront");
-          this.showToast("Signed in with Google successfully!", "success");
+          this.showToast(`Welcome, ${data.user.full_name || data.user.email}! Enjoy browsing.`, "success");
         }
+
+        this.updatePortalButtonState();
       }
-    })
-    .catch(() => {
-      // Fallback
-      this.isCustomerLoggedIn = true;
-      this.saveMerchantProfileToStorage();
-      this.closeMerchantAuth();
-      this.switchAppView("storefront");
-      this.showToast("Signed in with Google successfully!", "success");
-    });
+    } catch (err) {
+      if (err.code === "auth/popup-closed-by-user") {
+        console.log("Google sign-in popup closed by user");
+        return;
+      }
+      console.error("Google auth error:", err);
+      const errMsg = err.message || err.code || "Popup restricted";
+      this.showToast(`Google Sign-In Notice: ${errMsg}`, "warning");
+      const emailInput = document.getElementById("auth-google-email-input");
+      if (emailInput) emailInput.focus();
+    }
   }
 
   handleGoogleEmailSubmit(event) {
@@ -1831,7 +2650,7 @@ class AbbosseyOkaiApp {
       this.showToast("Authenticating with database...", "info");
       
       // Try login with backend
-      fetch("http://localhost:3001/api/auth/login", {
+      fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password: "merchant123" })
@@ -1849,11 +2668,11 @@ class AbbosseyOkaiApp {
             this.isMerchantLoggedIn = true;
             this.isAdminLoggedIn = false;
             this.isCustomerLoggedIn = false;
-            this.merchantProfile = data.merchantProfile;
+            this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
             this.saveMerchantProfileToStorage();
             this.closeMerchantAuth();
             this.switchAppView("dashboard");
-            this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
+            this.showToast(`Welcome back, ${this.merchantProfile.shopName || this.merchantProfile.shop_name}!`, "success");
           } else {
             this.isCustomerLoggedIn = true;
             this.isMerchantLoggedIn = false;
@@ -1865,7 +2684,7 @@ class AbbosseyOkaiApp {
           }
         } else {
           // New customer user -> Register in Neon backend
-          fetch("http://localhost:3001/api/auth/register", {
+          fetch(`${API_BASE}/api/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password: "customer123", role: "customer" })
@@ -1894,14 +2713,14 @@ class AbbosseyOkaiApp {
       })
       .catch(() => {
         // Local fallback
-        const merchant = this.merchants.find(m => m.email.toLowerCase() === email);
+        const merchant = this.merchants.find(m => m.email && m.email.toLowerCase() === email);
         if (merchant) {
           this.isMerchantLoggedIn = true;
           this.merchantProfile = { ...merchant };
           this.saveMerchantProfileToStorage();
           this.closeMerchantAuth();
           this.switchAppView("dashboard");
-          this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
+          this.showToast(`Welcome back, ${this.merchantProfile.shopName || this.merchantProfile.shop_name}!`, "success");
         } else {
           this.isCustomerLoggedIn = true;
           this.saveMerchantProfileToStorage();
@@ -1935,7 +2754,7 @@ class AbbosseyOkaiApp {
     
     this.showToast("Verifying admin credentials with Neon DB...", "info");
 
-    fetch("http://localhost:3001/api/auth/login", {
+    fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "korantenghenry2012@gmail.com", password })
@@ -1998,7 +2817,7 @@ class AbbosseyOkaiApp {
 
       this.showToast("Verifying code with backend...", "info");
 
-      fetch("http://localhost:3001/api/auth/login", {
+      fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleanPhone, password: "merchant123" })
@@ -2011,7 +2830,7 @@ class AbbosseyOkaiApp {
             this.isMerchantLoggedIn = true;
             this.isAdminLoggedIn = false;
             this.isCustomerLoggedIn = false;
-            this.merchantProfile = data.merchantProfile;
+            this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
             this.saveMerchantProfileToStorage();
             this.closeMerchantAuth();
             this.switchAppView("dashboard");
@@ -2027,7 +2846,7 @@ class AbbosseyOkaiApp {
           }
         } else {
           // Register customer phone
-          fetch("http://localhost:3001/api/auth/register", {
+          fetch(`${API_BASE}/api/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ phone: cleanPhone, password: "customer123", role: "customer" })
@@ -2179,7 +2998,7 @@ class AbbosseyOkaiApp {
 
     this.showToast("Creating merchant profile in Neon DB...", "info");
 
-    fetch("http://localhost:3001/api/auth/register-merchant", {
+    fetch(`${API_BASE}/api/auth/register-merchant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2199,7 +3018,7 @@ class AbbosseyOkaiApp {
       if (data.token) {
         localStorage.setItem("ao_jwt_token", data.token);
       }
-      this.merchantProfile = data.merchantProfile || {
+      this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile) || {
         shopName, ownerName: fullName, email, phone, location: shopLocation,
         coordinates: "5.5565, -0.2282", description: shopDesc, specialty: shopSpecialty,
         verified: false, since: "Jan 2026"
@@ -2271,13 +3090,575 @@ class AbbosseyOkaiApp {
     document.querySelectorAll(".dashboard-tab-panel").forEach(el => el.style.display = "none");
 
     if (tab === "inventory") {
-      document.getElementById("db-menu-inventory").classList.add("active");
+      document.getElementById("db-menu-inventory")?.classList.add("active");
       document.getElementById("db-panel-inventory").style.display = "block";
       this.renderMerchantInventory();
     } else if (tab === "profile") {
-      document.getElementById("db-menu-profile").classList.add("active");
+      document.getElementById("db-menu-profile")?.classList.add("active");
       document.getElementById("db-panel-profile").style.display = "block";
       this.renderMerchantProfile();
+    } else if (tab === "locations") {
+      document.getElementById("db-menu-locations")?.classList.add("active");
+      document.getElementById("db-panel-locations").style.display = "block";
+      this.renderMerchantLocationTab();
+    }
+  }
+
+  // ─── Merchant Center: Location & Map Management ──────────────
+  renderMerchantLocationTab() {
+    const profile = this.merchantProfile || {
+      shopName: "My Auto Store",
+      location: "Abossey Okai Central, Accra, Ghana",
+      coordinates: "5.5562, -0.2284"
+    };
+
+    let lat = 5.5562;
+    let lng = -0.2284;
+    let source = "manual_pin";
+    let accuracy = 15;
+    let formattedAddress = profile.location || "Abossey Okai, Accra, Greater Accra, Ghana";
+    let landmarks = "";
+    let stallNumber = "";
+    let customText = profile.location || "";
+
+    if (profile.location_data) {
+      try {
+        const locData = typeof profile.location_data === "string" 
+          ? JSON.parse(profile.location_data) 
+          : profile.location_data;
+        if (locData.latitude) lat = parseFloat(locData.latitude);
+        if (locData.longitude) lng = parseFloat(locData.longitude);
+        if (locData.source) source = locData.source;
+        if (locData.accuracy_meters) accuracy = locData.accuracy_meters;
+        if (locData.formatted_address) formattedAddress = locData.formatted_address;
+        if (locData.landmarks) landmarks = locData.landmarks;
+        if (locData.stall_number) stallNumber = locData.stall_number;
+        if (locData.custom_location_text) customText = locData.custom_location_text;
+      } catch (e) {}
+    } else if (profile.coordinates) {
+      const parts = profile.coordinates.split(",").map(s => parseFloat(s.trim()));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        lat = parts[0];
+        lng = parts[1];
+      }
+    }
+
+    this.activeMerchantLocation = {
+      latitude: lat,
+      longitude: lng,
+      accuracy_meters: accuracy,
+      source: source,
+      formatted_address: formattedAddress,
+      landmarks: landmarks,
+      stall_number: stallNumber,
+      custom_location_text: customText
+    };
+
+    // Populate inputs
+    const stallInput = document.getElementById("merchant-stall-number");
+    const landmarkInput = document.getElementById("merchant-landmarks");
+    const customTextInput = document.getElementById("merchant-custom-location-text");
+
+    if (stallInput) stallInput.value = stallNumber;
+    if (landmarkInput) landmarkInput.value = landmarks;
+    if (customTextInput) customTextInput.value = customText;
+
+    // Populate meta badges
+    const coordsDisplay = document.getElementById("merchant-coords-display");
+    const addressDisplay = document.getElementById("merchant-address-display");
+    const accuracyDisplay = document.getElementById("merchant-accuracy-display");
+    const sourceDisplay = document.getElementById("merchant-source-display");
+
+    if (coordsDisplay) coordsDisplay.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    if (addressDisplay) addressDisplay.textContent = formattedAddress;
+    if (accuracyDisplay) accuracyDisplay.textContent = `±${accuracy} m (${accuracy <= 25 ? 'High Precision' : 'Approximate'})`;
+    if (sourceDisplay) {
+      const badgeClass = source === "gps" ? "badge-gps" : (source === "search" ? "badge-search" : (source === "preset" ? "badge-source" : "badge-manual"));
+      const badgeText = source === "gps" ? "GPS Geolocation" : (source === "search" ? "Search Place" : (source === "preset" ? "Preset Area" : "Manual Pin"));
+      sourceDisplay.innerHTML = `<span class="badge-source ${badgeClass}">${badgeText}</span>`;
+    }
+
+    // Google Maps Escape Hatch Link
+    const escapeHatch = document.getElementById("merchant-google-maps-escape-hatch");
+    if (escapeHatch) {
+      escapeHatch.href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`;
+    }
+
+    this.updateDirectionsDeepLinkPreview(lat, lng);
+    setTimeout(() => this.initMerchantLocationMap(), 150);
+  }
+
+  initMerchantLocationMap() {
+    const mapEl = document.getElementById("merchant-interactive-map");
+    if (!mapEl || typeof L === "undefined") return;
+
+    const lat = this.activeMerchantLocation?.latitude || 5.5562;
+    const lng = this.activeMerchantLocation?.longitude || -0.2284;
+
+    try {
+      if (this._merchantMap) {
+        this._merchantMap.invalidateSize();
+        if (this._merchantMarker) {
+          this._merchantMarker.setLatLng([lat, lng]);
+        }
+        this._merchantMap.setView([lat, lng], 16);
+        return;
+      }
+
+      const map = L.map("merchant-interactive-map", {
+        zoomControl: true,
+        attributionControl: false,
+      }).setView([lat, lng], 16);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+
+      const pinIcon = L.divIcon({
+        className: "leaflet-custom-merchant-pin",
+        html: '<i class="fa-solid fa-location-dot" style="color:#002d62; font-size:2.4rem; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.35)); cursor:grab;"></i>',
+        iconSize: [32, 42],
+        iconAnchor: [16, 42],
+        popupAnchor: [0, -42]
+      });
+
+      const marker = L.marker([lat, lng], {
+        icon: pinIcon,
+        draggable: true
+      }).addTo(map);
+
+      const shopName = this.merchantProfile?.shopName || this.merchantProfile?.shop_name || 'Shop Location';
+      marker.bindPopup(`<b>${shopName}</b><br>Drag pin to adjust exact stall location.`).openPopup();
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        this.updateMerchantMapLocation(pos.lat, pos.lng, "manual_pin");
+      });
+
+      map.on("click", (e) => {
+        marker.setLatLng(e.latlng);
+        this.updateMerchantMapLocation(e.latlng.lat, e.latlng.lng, "manual_pin");
+      });
+
+      this._merchantMap = map;
+      this._merchantMarker = marker;
+
+      this.setupMerchantMapSearch();
+      setTimeout(() => map.invalidateSize(), 300);
+    } catch (err) {
+      console.warn("Leaflet map initialization warning:", err);
+    }
+  }
+
+  updateMerchantMapLocation(lat, lng, source = "manual_pin", accuracyMeters = null) {
+    if (typeof lat !== "number" || typeof lng !== "number" || isNaN(lat) || isNaN(lng)) return;
+
+    const acc = accuracyMeters !== null ? Math.round(accuracyMeters) : 15;
+    if (!this.activeMerchantLocation) this.activeMerchantLocation = {};
+    this.activeMerchantLocation.latitude = lat;
+    this.activeMerchantLocation.longitude = lng;
+    this.activeMerchantLocation.source = source;
+    this.activeMerchantLocation.accuracy_meters = acc;
+
+    // Update displays
+    const coordsDisplay = document.getElementById("merchant-coords-display");
+    if (coordsDisplay) coordsDisplay.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+    const accuracyDisplay = document.getElementById("merchant-accuracy-display");
+    if (accuracyDisplay) {
+      accuracyDisplay.textContent = `±${acc} m (${acc <= 25 ? 'High Precision' : 'Approximate'})`;
+    }
+
+    const accuracyNotice = document.getElementById("merchant-map-accuracy-notice");
+    if (accuracyNotice) {
+      if (source === "gps" && acc > 100) {
+        accuracyNotice.style.display = "flex";
+      } else {
+        accuracyNotice.style.display = "none";
+      }
+    }
+
+    const sourceDisplay = document.getElementById("merchant-source-display");
+    if (sourceDisplay) {
+      const badgeClass = source === "gps" ? "badge-gps" : (source === "search" ? "badge-search" : (source === "preset" ? "badge-source" : "badge-manual"));
+      const badgeText = source === "gps" ? "GPS Geolocation" : (source === "search" ? "Search Place" : (source === "preset" ? "Preset Area" : "Manual Pin"));
+      sourceDisplay.innerHTML = `<span class="badge-source ${badgeClass}">${badgeText}</span>`;
+    }
+
+    // Google Maps Escape Hatch Link
+    const escapeHatch = document.getElementById("merchant-google-maps-escape-hatch");
+    if (escapeHatch) {
+      escapeHatch.href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`;
+    }
+
+    this.updateDirectionsDeepLinkPreview(lat, lng);
+
+    // Reverse Geocoding with Nominatim (rate limited & debounced)
+    if (this._reverseGeocodeTimer) clearTimeout(this._reverseGeocodeTimer);
+    this._reverseGeocodeTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+          headers: { "Accept-Language": "en" }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.display_name) {
+            this.activeMerchantLocation.formatted_address = data.display_name;
+            const addressDisplay = document.getElementById("merchant-address-display");
+            if (addressDisplay) addressDisplay.textContent = data.display_name;
+
+            const customTextInput = document.getElementById("merchant-custom-location-text");
+            if (customTextInput && !customTextInput.value.trim()) {
+              const road = data.address?.road || data.address?.suburb || "Abossey Okai";
+              const city = data.address?.city || data.address?.town || "Accra";
+              customTextInput.value = `${road}, ${city}`;
+              this.activeMerchantLocation.custom_location_text = customTextInput.value;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Reverse geocode warning:", err);
+      }
+    }, 600);
+  }
+
+  setupMerchantMapSearch() {
+    const searchInput = document.getElementById("merchant-map-search-input");
+    const clearBtn = document.getElementById("merchant-map-clear-search");
+    const resultsDropdown = document.getElementById("merchant-map-search-results");
+
+    if (!searchInput || !resultsDropdown) return;
+
+    let debounceTimer = null;
+
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.trim();
+      if (clearBtn) clearBtn.style.display = query.length > 0 ? "flex" : "none";
+
+      clearTimeout(debounceTimer);
+      if (query.length < 2) {
+        resultsDropdown.style.display = "none";
+        resultsDropdown.innerHTML = "";
+        return;
+      }
+
+      // 1. Direct coordinates match check (e.g. 5.5562, -0.2284)
+      const coordMatch = query.match(/^@?(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)$/);
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          resultsDropdown.innerHTML = `
+            <div class="map-search-item" id="search-direct-coord-item">
+              <i class="fa-solid fa-location-crosshairs"></i>
+              <div>
+                <strong>Jump to Coordinates: ${lat.toFixed(5)}, ${lng.toFixed(5)}</strong>
+                <div style="font-size:0.75rem; color:#64748b;">Direct GPS point</div>
+              </div>
+            </div>
+          `;
+          resultsDropdown.style.display = "block";
+          document.getElementById("search-direct-coord-item")?.addEventListener("click", () => {
+            this.jumpMerchantMapPreset(lat, lng, `Coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+            resultsDropdown.style.display = "none";
+          });
+          return;
+        }
+      }
+
+      // 2. Nominatim Search
+      debounceTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=gh&viewbox=-0.35,5.65,-0.10,5.50&bounded=0&limit=5&addressdetails=1`, {
+            headers: { "Accept-Language": "en" }
+          });
+          if (res.ok) {
+            const places = await res.json();
+            if (places.length === 0) {
+              resultsDropdown.innerHTML = `<div class="map-search-item" style="color:#64748b; cursor:default;">No location matches found in Ghana</div>`;
+              resultsDropdown.style.display = "block";
+              return;
+            }
+
+            resultsDropdown.innerHTML = "";
+            places.forEach(p => {
+              const item = document.createElement("div");
+              item.className = "map-search-item";
+              item.innerHTML = `
+                <i class="fa-solid fa-location-dot"></i>
+                <div>
+                  <strong>${p.name || p.display_name.split(",")[0]}</strong>
+                  <div style="font-size:0.75rem; color:#64748b;">${p.display_name}</div>
+                </div>
+              `;
+              item.addEventListener("click", () => {
+                const lat = parseFloat(p.lat);
+                const lng = parseFloat(p.lon);
+                this.jumpMerchantMapPreset(lat, lng, p.name || p.display_name.split(",")[0]);
+                searchInput.value = p.name || p.display_name.split(",")[0];
+                resultsDropdown.style.display = "none";
+              });
+              resultsDropdown.appendChild(item);
+            });
+            resultsDropdown.style.display = "block";
+          }
+        } catch (err) {
+          console.warn("Geocoding search warning:", err);
+        }
+      }, 350);
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        this.searchMerchantLocation();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!searchInput.contains(e.target) && !resultsDropdown.contains(e.target)) {
+        resultsDropdown.style.display = "none";
+      }
+    });
+  }
+
+  searchMerchantLocation() {
+    const searchInput = document.getElementById("merchant-map-search-input");
+    const query = searchInput?.value.trim();
+    if (!query) return;
+
+    // Check direct coordinates
+    const coordMatch = query.match(/^@?(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)$/);
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1]);
+      const lng = parseFloat(coordMatch[2]);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        this.jumpMerchantMapPreset(lat, lng, `Coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+        return;
+      }
+    }
+
+    // Direct Nominatim lookup
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=gh&limit=1`, {
+      headers: { "Accept-Language": "en" }
+    })
+    .then(r => r.json())
+    .then(places => {
+      if (places && places.length > 0) {
+        const lat = parseFloat(places[0].lat);
+        const lng = parseFloat(places[0].lon);
+        this.jumpMerchantMapPreset(lat, lng, places[0].name || places[0].display_name.split(",")[0]);
+        this.showToast(`Found: ${places[0].name || places[0].display_name.split(",")[0]}`, "success");
+      } else {
+        this.showToast("No locations matching your search in Ghana were found.", "warning");
+      }
+    })
+    .catch(() => {
+      this.showToast("Could not complete geocoding search. Please try again or click the map directly.", "error");
+    });
+  }
+
+  clearMerchantMapSearch() {
+    const searchInput = document.getElementById("merchant-map-search-input");
+    const clearBtn = document.getElementById("merchant-map-clear-search");
+    const resultsDropdown = document.getElementById("merchant-map-search-results");
+    if (searchInput) searchInput.value = "";
+    if (clearBtn) clearBtn.style.display = "none";
+    if (resultsDropdown) {
+      resultsDropdown.style.display = "none";
+      resultsDropdown.innerHTML = "";
+    }
+  }
+
+  jumpMerchantMapPreset(lat, lng, label, btnEl = null) {
+    if (!this._merchantMap || !this._merchantMarker) return;
+
+    this._merchantMarker.setLatLng([lat, lng]);
+    this._merchantMap.setView([lat, lng], 17, { animate: true });
+    this.updateMerchantMapLocation(lat, lng, "preset");
+
+    // Highlight chip
+    document.querySelectorAll(".map-preset-chip").forEach(c => c.classList.remove("active"));
+    if (btnEl) {
+      btnEl.classList.add("active");
+    } else {
+      const matchingChip = Array.from(document.querySelectorAll(".map-preset-chip")).find(c => {
+        const cLat = parseFloat(c.getAttribute("data-lat"));
+        const cLng = parseFloat(c.getAttribute("data-lng"));
+        return Math.abs(cLat - lat) < 0.0005 && Math.abs(cLng - lng) < 0.0005;
+      });
+      if (matchingChip) matchingChip.classList.add("active");
+    }
+  }
+
+  detectMerchantDeviceLocation() {
+    if (!navigator.geolocation) {
+      this.showToast("Geolocation is not supported by your browser.", "warning");
+      return;
+    }
+
+    this.showToast("Detecting your GPS position...", "info");
+    const gpsBtn = document.getElementById("merchant-auto-gps-btn");
+    if (gpsBtn) {
+      gpsBtn.disabled = true;
+      gpsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Detecting GPS...';
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (gpsBtn) {
+          gpsBtn.disabled = false;
+          gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> Auto-Detect My Location (GPS)';
+        }
+
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const accuracy = Math.round(pos.coords.accuracy);
+
+        if (this._merchantMap && this._merchantMarker) {
+          this._merchantMarker.setLatLng([lat, lng]);
+          this._merchantMap.setView([lat, lng], 17, { animate: true });
+        }
+
+        this.updateMerchantMapLocation(lat, lng, "gps", accuracy);
+
+        if (accuracy > 100) {
+          this.showToast(`GPS reading accurate to ±${accuracy}m. Please drag the pin to confirm exact shop position.`, "warning");
+        } else {
+          this.showToast(`GPS position locked (±${accuracy}m). Please confirm pin position.`, "success");
+        }
+      },
+      (err) => {
+        if (gpsBtn) {
+          gpsBtn.disabled = false;
+          gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> Auto-Detect My Location (GPS)';
+        }
+        let msg = "Could not detect GPS position.";
+        if (err.code === 1) msg = "Location permission was denied in your browser.";
+        else if (err.code === 2) msg = "GPS position is unavailable.";
+        else if (err.code === 3) msg = "GPS request timed out.";
+        this.showToast(msg, "warning");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }
+
+  onLocationDetailChange() {
+    const stall = document.getElementById("merchant-stall-number")?.value.trim();
+    const landmarks = document.getElementById("merchant-landmarks")?.value.trim();
+    const customText = document.getElementById("merchant-custom-location-text")?.value.trim();
+
+    if (this.activeMerchantLocation) {
+      this.activeMerchantLocation.stall_number = stall || null;
+      this.activeMerchantLocation.landmarks = landmarks || null;
+      this.activeMerchantLocation.custom_location_text = customText || null;
+    }
+  }
+
+  updateDirectionsDeepLinkPreview(lat, lng) {
+    const googleBtn = document.getElementById("preview-google-directions-btn");
+    const appleBtn = document.getElementById("preview-apple-directions-btn");
+    const shopName = this.merchantProfile?.shopName || "Abossey Okai Merchant";
+
+    if (googleBtn) {
+      googleBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shopName + ', ' + lat.toFixed(6) + ',' + lng.toFixed(6))}`;
+    }
+    if (appleBtn) {
+      appleBtn.href = `https://maps.apple.com/?ll=${lat.toFixed(6)},${lng.toFixed(6)}&q=${encodeURIComponent(shopName)}`;
+    }
+  }
+
+  async saveMerchantLocation() {
+    if (!this.merchantProfile || !this.merchantProfile.id) {
+      this.showToast("Please log in as a merchant to update your shop location.", "error");
+      return;
+    }
+
+    const loc = this.activeMerchantLocation;
+    if (!loc || typeof loc.latitude !== "number" || typeof loc.longitude !== "number") {
+      this.showToast("Please select a valid location on the map before saving.", "error");
+      return;
+    }
+
+    // Validate bounding box for Ghana
+    if (loc.latitude < 4.5 || loc.latitude > 11.5 || loc.longitude < -3.5 || loc.longitude > 1.5) {
+      this.showToast("Selected coordinates fall outside Ghana. Please pinpoint a location within Ghana/Accra.", "error");
+      return;
+    }
+
+    const stall = document.getElementById("merchant-stall-number")?.value.trim();
+    const landmarks = document.getElementById("merchant-landmarks")?.value.trim();
+    const customText = document.getElementById("merchant-custom-location-text")?.value.trim();
+
+    const payload = {
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      accuracy_meters: loc.accuracy_meters || 15,
+      source: loc.source || "manual_pin",
+      formatted_address: loc.formatted_address || "Abossey Okai, Accra, Ghana",
+      stall_number: stall || null,
+      landmarks: landmarks || null,
+      custom_location_text: customText || null,
+    };
+
+    const topBtn = document.getElementById("save-location-top-btn");
+    const btmBtn = document.getElementById("save-location-bottom-btn");
+    if (topBtn) { topBtn.disabled = true; topBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; }
+    if (btmBtn) { btmBtn.disabled = true; btmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving Location...'; }
+
+    try {
+      const token = localStorage.getItem("ao_jwt_token");
+      const res = await fetch(`${API_BASE}/api/merchants/${this.merchantProfile.id}/location`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update shop location.");
+      }
+
+      // Update local state
+      const coordsString = `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`;
+      const finalLocation = customText || loc.formatted_address || `Abossey Okai (${coordsString})`;
+
+      this.merchantProfile.coordinates = coordsString;
+      this.merchantProfile.latitude = loc.latitude;
+      this.merchantProfile.longitude = loc.longitude;
+      this.merchantProfile.location = finalLocation;
+      this.merchantProfile.location_data = data.location_data || payload;
+
+      this.saveMerchantProfileToStorage();
+
+      // Update display in sidebar and shop profile form
+      const displayLoc = document.getElementById("merchant-display-location");
+      if (displayLoc) displayLoc.innerHTML = `<i class="fa-solid fa-location-dot"></i> ${finalLocation}`;
+
+      const settingsLoc = document.getElementById("settings-location");
+      const settingsCoords = document.getElementById("settings-coordinates");
+      if (settingsLoc) settingsLoc.value = finalLocation;
+      if (settingsCoords) settingsCoords.value = coordsString;
+
+      this.showToast("Shop location and map pinpoint saved successfully!", "success");
+    } catch (err) {
+      console.error("Save location error:", err);
+      // Fallback save to localStorage if backend is unreachable
+      const coordsString = `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`;
+      const finalLocation = customText || loc.formatted_address || `Abossey Okai (${coordsString})`;
+      this.merchantProfile.coordinates = coordsString;
+      this.merchantProfile.latitude = loc.latitude;
+      this.merchantProfile.longitude = loc.longitude;
+      this.merchantProfile.location = finalLocation;
+      this.merchantProfile.location_data = payload;
+      this.saveMerchantProfileToStorage();
+      this.showToast("Shop location saved locally.", "success");
+    } finally {
+      if (topBtn) { topBtn.disabled = false; topBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save Shop Location'; }
+      if (btmBtn) { btmBtn.disabled = false; btmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Save & Publish Shop Location'; }
     }
   }
 
@@ -2348,9 +3729,19 @@ class AbbosseyOkaiApp {
   }
 
   updateDescCharCount(textarea) {
-    const counter = document.getElementById('settings-desc-counter');
-    if (counter && textarea) {
-      counter.textContent = `${textarea.value.length} / 500`;
+    if (!textarea) return;
+    let counter = null;
+    if (textarea.id === 'onboard-merchant-desc') {
+      counter = document.getElementById('onboard-desc-counter');
+    } else if (textarea.id === 'settings-description') {
+      counter = document.getElementById('settings-desc-counter');
+    } else {
+      counter = textarea.parentElement ? textarea.parentElement.querySelector('.char-count-row span') : null;
+    }
+
+    if (counter) {
+      const max = textarea.getAttribute('maxlength') || 500;
+      counter.textContent = `${textarea.value.length} / ${max}`;
     }
   }
 
@@ -2360,6 +3751,309 @@ class AbbosseyOkaiApp {
       const query = coords ? coords.trim() : '5.5562,-0.2284';
       link.href = `https://maps.google.com/?q=${encodeURIComponent(query)}`;
     }
+  }
+
+  // ─── Interactive Map (Leaflet) ──────────────────────────
+  initOnboardMap() {
+    if (this._onboardMap) {
+      this._onboardMap.remove();
+      this._onboardMap = null;
+    }
+
+    const mapEl = document.getElementById('onboard-leaflet-map');
+    if (!mapEl || typeof L === 'undefined') return;
+
+    // Default: Abossey Okai, Accra
+    const defaultLat = 5.5562;
+    const defaultLng = -0.2284;
+
+    const map = L.map('onboard-leaflet-map', {
+      zoomControl: true,
+      attributionControl: false,
+    }).setView([defaultLat, defaultLng], 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    }).addTo(map);
+
+    // Custom blue pin icon
+    const pinIcon = L.divIcon({
+      className: 'leaflet-custom-pin',
+      html: '<i class="fa-solid fa-location-dot" style="color:#2563eb;font-size:2.2rem;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.25));"></i>',
+      iconSize: [30, 40],
+      iconAnchor: [15, 40],
+      popupAnchor: [0, -42],
+    });
+
+    const marker = L.marker([defaultLat, defaultLng], {
+      icon: pinIcon,
+      draggable: true,
+    }).addTo(map);
+
+    // Sync coordinates whenever marker moves
+    const syncCoords = (lat, lng) => {
+      const coordStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      const coordsInput = document.getElementById('onboard-merchant-coords');
+      const coordsDisplay = document.getElementById('onboard-map-coords-display');
+      const mapsLink = document.getElementById('onboard-google-maps-link');
+
+      if (coordsInput) {
+        coordsInput.value = coordStr;
+        // Trigger the valid-check icon
+        this.onSettingsInputChange(coordsInput);
+      }
+      if (coordsDisplay) coordsDisplay.textContent = coordStr;
+      if (mapsLink) mapsLink.href = `https://maps.google.com/?q=${lat.toFixed(4)},${lng.toFixed(4)}`;
+    };
+
+    // Initial sync
+    syncCoords(defaultLat, defaultLng);
+
+    // Drag pin to set location
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      syncCoords(pos.lat, pos.lng);
+    });
+
+    // Click map to move pin
+    map.on('click', (e) => {
+      marker.setLatLng(e.latlng);
+      syncCoords(e.latlng.lat, e.latlng.lng);
+    });
+
+    // Store references
+    this._onboardMap = map;
+    this._onboardMarker = marker;
+    this._onboardSyncCoords = syncCoords;
+
+    // Setup search & locate
+    this._setupMapSearch();
+    this._setupMapLocate();
+  }
+
+  _setupMapSearch() {
+    const searchInput = document.getElementById('onboard-map-search');
+    const clearBtn = document.getElementById('onboard-map-clear-search');
+    const resultsContainer = document.getElementById('onboard-map-search-results');
+    if (!searchInput || !resultsContainer) return;
+
+    let searchTimeout = null;
+
+    // Preset chips click handler
+    document.querySelectorAll('.map-preset-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const lat = parseFloat(chip.dataset.lat);
+        const lng = parseFloat(chip.dataset.lng);
+        if (!isNaN(lat) && !isNaN(lng) && this._onboardMap && this._onboardMarker) {
+          this._onboardMarker.setLatLng([lat, lng]);
+          this._onboardMap.setView([lat, lng], 17, { animate: true });
+          this._onboardSyncCoords(lat, lng);
+          searchInput.value = chip.textContent.trim();
+          clearBtn.style.display = 'flex';
+          resultsContainer.style.display = 'none';
+        }
+      });
+    });
+
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.trim();
+      clearBtn.style.display = query.length > 0 ? 'flex' : 'none';
+
+      clearTimeout(searchTimeout);
+      if (query.length < 2) {
+        resultsContainer.style.display = 'none';
+        resultsContainer.innerHTML = '';
+        return;
+      }
+
+      // Check if user pasted/typed direct coordinates like "5.5562, -0.2284" or "5.5562 -0.2284"
+      const coordMatch = query.match(/^@?(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)$/);
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          resultsContainer.innerHTML = `
+            <div class="map-search-result-item" data-lat="${lat}" data-lng="${lng}">
+              <i class="fa-solid fa-crosshairs" style="color: #2563eb;"></i>
+              <div class="result-text">
+                <div class="result-name">Jump to Coordinates</div>
+                <div class="result-address">Latitude: ${lat.toFixed(5)}, Longitude: ${lng.toFixed(5)}</div>
+              </div>
+            </div>`;
+          resultsContainer.style.display = 'block';
+
+          const item = resultsContainer.querySelector('.map-search-result-item');
+          if (item) {
+            item.addEventListener('click', () => {
+              this._onboardMarker.setLatLng([lat, lng]);
+              this._onboardMap.setView([lat, lng], 17, { animate: true });
+              this._onboardSyncCoords(lat, lng);
+              resultsContainer.style.display = 'none';
+            });
+          }
+          return;
+        }
+      }
+
+      // Show loading indicator
+      resultsContainer.innerHTML = `
+        <div class="map-search-result-item" style="opacity:0.6;cursor:default;">
+          <i class="fa-solid fa-spinner fa-spin" style="color:#3b82f6;"></i>
+          <div class="result-text">
+            <div class="result-name">Searching locations in Accra & Ghana...</div>
+          </div>
+        </div>`;
+      resultsContainer.style.display = 'block';
+
+      searchTimeout = setTimeout(async () => {
+        try {
+          let items = [];
+
+          // 1. Try Photon API first (ultra-fast, excellent proximity ranking for local places)
+          try {
+            const photonRes = await fetch(
+              `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=5.5562&lon=-0.2284&limit=6&lang=en`
+            );
+            if (photonRes.ok) {
+              const photonData = await photonRes.json();
+              if (photonData.features && photonData.features.length > 0) {
+                items = photonData.features.map(f => {
+                  const props = f.properties;
+                  const name = props.name || props.street || props.district || query;
+                  const parts = [props.street, props.district, props.city || props.county, props.country].filter(Boolean);
+                  return {
+                    name: name,
+                    address: parts.join(', '),
+                    lat: f.geometry.coordinates[1],
+                    lng: f.geometry.coordinates[0]
+                  };
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('Photon API fetch failed, falling back to Nominatim', e);
+          }
+
+          // 2. Fallback to Nominatim biased to Ghana & Accra bounding box if Photon returned no results
+          if (items.length === 0) {
+            const nomRes = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=gh&viewbox=-0.40,5.40,-0.05,5.70&limit=6&addressdetails=1`,
+              { headers: { 'Accept-Language': 'en' } }
+            );
+            if (nomRes.ok) {
+              const nomData = await nomRes.json();
+              items = nomData.map(r => {
+                const parts = r.display_name.split(',');
+                return {
+                  name: parts[0].trim(),
+                  address: parts.slice(1, 4).join(',').trim(),
+                  lat: parseFloat(r.lat),
+                  lng: parseFloat(r.lon)
+                };
+              });
+            }
+          }
+
+          if (items.length === 0) {
+            resultsContainer.innerHTML = `
+              <div class="map-search-result-item" style="opacity:0.6;cursor:default;">
+                <i class="fa-solid fa-circle-exclamation" style="color:#eab308;"></i>
+                <div class="result-text">
+                  <div class="result-name">No locations found for "${query}"</div>
+                  <div class="result-address">Try searching another landmark or click on the map directly</div>
+                </div>
+              </div>`;
+            resultsContainer.style.display = 'block';
+            return;
+          }
+
+          resultsContainer.innerHTML = items.map(r => `
+            <div class="map-search-result-item" data-lat="${r.lat}" data-lng="${r.lng}">
+              <i class="fa-solid fa-location-dot" style="color:#3b82f6;"></i>
+              <div class="result-text">
+                <div class="result-name">${r.name}</div>
+                <div class="result-address">${r.address || 'Ghana'}</div>
+              </div>
+            </div>`).join('');
+
+          resultsContainer.style.display = 'block';
+
+          // Click handlers for results
+          resultsContainer.querySelectorAll('.map-search-result-item[data-lat]').forEach(item => {
+            item.addEventListener('click', () => {
+              const lat = parseFloat(item.dataset.lat);
+              const lng = parseFloat(item.dataset.lng);
+              if (this._onboardMarker && this._onboardMap) {
+                this._onboardMarker.setLatLng([lat, lng]);
+                this._onboardMap.setView([lat, lng], 17, { animate: true });
+                this._onboardSyncCoords(lat, lng);
+                resultsContainer.style.display = 'none';
+                searchInput.value = item.querySelector('.result-name').textContent;
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Map search error:', err);
+          resultsContainer.innerHTML = `
+            <div class="map-search-result-item" style="opacity:0.6;cursor:default;">
+              <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;"></i>
+              <div class="result-text">
+                <div class="result-name">Search error</div>
+                <div class="result-address">Please check network or tap on map directly</div>
+              </div>
+            </div>`;
+        }
+      }, 300);
+    });
+
+    // Clear button
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearBtn.style.display = 'none';
+      resultsContainer.style.display = 'none';
+      resultsContainer.innerHTML = '';
+      searchInput.focus();
+    });
+
+    // Close results when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.onboard-map-container')) {
+        resultsContainer.style.display = 'none';
+      }
+    });
+  }
+
+  _setupMapLocate() {
+    const btn = document.getElementById('onboard-map-locate-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        this.showToast('Geolocation is not supported by your browser.', 'error');
+        return;
+      }
+
+      btn.classList.add('locating');
+      this.showToast('Getting your location...', 'info');
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          btn.classList.remove('locating');
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          this._onboardMarker.setLatLng([lat, lng]);
+          this._onboardMap.setView([lat, lng], 17, { animate: true });
+          this._onboardSyncCoords(lat, lng);
+          this.showToast('Location set from GPS!', 'success');
+        },
+        (err) => {
+          btn.classList.remove('locating');
+          this.showToast('Could not get your location. Please allow location access.', 'error');
+          console.error('Geolocation error:', err);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
   }
 
   onSettingsInputChange(input) {
@@ -2697,7 +4391,7 @@ class AbbosseyOkaiApp {
 
     if (productId) {
       this.editingProductId = productId;
-      const product = this.products.find(p => p.id === productId);
+      const product = this.products.find(p => p.id == productId || String(p.id) === String(productId));
       if (!product) return;
 
       document.getElementById("form-modal-title-text").textContent = "Edit Product Listing";
@@ -3062,7 +4756,14 @@ class AbbosseyOkaiApp {
 
         if (matchingTaxonomyMake) {
           makePart = matchingTaxonomyMake;
-          modelPart = str;
+          // Strip the make prefix from the model string if present to avoid duplication
+          const strLower = str.toLowerCase();
+          const makeLower = matchingTaxonomyMake.toLowerCase();
+          if (strLower.startsWith(makeLower + " ")) {
+            modelPart = str.substring(matchingTaxonomyMake.length).trim();
+          } else {
+            modelPart = str;
+          }
         } else {
           const parts = str.split(" ");
           const firstWordLower = parts[0] ? parts[0].toLowerCase() : "";
@@ -3108,7 +4809,7 @@ class AbbosseyOkaiApp {
     if (this.editingProductId) {
       this.showToast("Updating listing in Neon DB...", "info");
       try {
-        const res = await fetch(`http://localhost:3001/api/products/${this.editingProductId}`, {
+        const res = await fetch(`${API_BASE}/api/products/${this.editingProductId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -3137,7 +4838,7 @@ class AbbosseyOkaiApp {
       // Creating new product via POST /api/products
       this.showToast("Publishing listing to Neon DB...", "info");
       try {
-        const res = await fetch("http://localhost:3001/api/products", {
+        const res = await fetch(`${API_BASE}/api/products`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -3168,14 +4869,14 @@ class AbbosseyOkaiApp {
 
   // Toggle Visibility in inventory row (API call)
   async toggleListingVisibility(id) {
-    const item = this.products.find(p => p.id === id);
+    const item = this.products.find(p => p.id == id || String(p.id) === String(id));
     if (!item) return;
 
     const newStatus = item.status === "Live" ? "Hidden" : "Live";
     const token = localStorage.getItem("ao_jwt_token");
 
     try {
-      const res = await fetch(`http://localhost:3001/api/products/${id}`, {
+      const res = await fetch(`${API_BASE}/api/products/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -3193,14 +4894,14 @@ class AbbosseyOkaiApp {
 
   // Toggle stock values (API call)
   async toggleListingStock(id) {
-    const item = this.products.find(p => p.id === id);
+    const item = this.products.find(p => p.id == id || String(p.id) === String(id));
     if (!item) return;
 
     const newStock = item.stock === "In Stock" ? "Out of Stock" : "In Stock";
     const token = localStorage.getItem("ao_jwt_token");
 
     try {
-      const res = await fetch(`http://localhost:3001/api/products/${id}`, {
+      const res = await fetch(`${API_BASE}/api/products/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -3223,7 +4924,7 @@ class AbbosseyOkaiApp {
     const token = localStorage.getItem("ao_jwt_token");
 
     try {
-      const res = await fetch(`http://localhost:3001/api/products/${id}`, {
+      const res = await fetch(`${API_BASE}/api/products/${id}`, {
         method: "DELETE",
         headers: {
           "Authorization": token ? `Bearer ${token}` : ""
@@ -3295,27 +4996,8 @@ class AbbosseyOkaiApp {
 
   // Simple Beautiful Notification alerts
   showToast(message, type = "success") {
-    const container = document.getElementById("global-toast-container");
-    if (!container) return;
-
-    const toast = document.createElement("div");
-    toast.className = `toast toast-${type}`;
-    
-    const icon = type === "success" 
-      ? '<i class="fa-solid fa-circle-check" style="color:var(--whatsapp-color);"></i>'
-      : '<i class="fa-solid fa-triangle-exclamation" style="color:#DC2626;"></i>';
-
-    toast.innerHTML = `${icon} <span>${message}</span>`;
-    container.appendChild(toast);
-
-    // Animates entry
-    setTimeout(() => toast.classList.add("show"), 50);
-
-    // Animates exit
-    setTimeout(() => {
-      toast.classList.remove("show");
-      setTimeout(() => toast.remove(), 400);
-    }, 3500);
+    // Silently log — no popup toasts. Operations run in the background.
+    console.log(`[${type.toUpperCase()}] ${message}`);
   }
 
   // UI styling enhancements for first impress wow factor
@@ -3446,73 +5128,122 @@ class AbbosseyOkaiApp {
     this.renderAdminListings();
   }
 
-  toggleMerchantVerification(shopName, isChecked) {
+  async toggleMerchantVerification(shopName, isChecked) {
     const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant) return;
-    
-    merchant.verified = isChecked;
-    localStorage.setItem("ao_marketplace_merchants", JSON.stringify(this.merchants));
-    
-    this.products.forEach(p => {
-      if (p.merchant && p.merchant.shopName === shopName) {
-        p.merchant.verified = isChecked;
+    if (!merchant || !merchant.id) return;
+
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ verified: isChecked })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        this.showToast(`Error: ${data.error || "Failed to update verification."}`, "error");
+        return;
       }
-    });
-    this.saveProductsToStorage();
-    
+    } catch (err) {
+      console.error("Toggle verification error:", err);
+      this.showToast("Network error updating verification.", "error");
+      return;
+    }
+
     this.showToast(`Merchant "${shopName}" verification status set to ${isChecked ? "Verified" : "Independent"}.`, "success");
     this.logAdminAction("MERCHANT_VERIFY_TOGGLE", shopName, `Verified status set to ${isChecked}`);
-    
+
+    await this.loadBackendData();
     this.renderAdminMerchants();
     this.renderCatalog();
   }
 
-  editMerchantNotes(shopName) {
+  async editMerchantNotes(shopName) {
     const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant) return;
-    
+    if (!merchant || !merchant.id) return;
+
     const currentNotes = merchant.verificationNotes || "";
     const newNotes = prompt(`Enter verification review notes for "${shopName}":`, currentNotes);
     if (newNotes === null) return;
-    
-    merchant.verificationNotes = newNotes.trim();
-    localStorage.setItem("ao_marketplace_merchants", JSON.stringify(this.merchants));
-    
+
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ verified: merchant.verified, verification_notes: newNotes.trim() })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        this.showToast(`Error: ${data.error || "Failed to update notes."}`, "error");
+        return;
+      }
+    } catch (err) {
+      console.error("Edit merchant notes error:", err);
+      this.showToast("Network error updating notes.", "error");
+      return;
+    }
+
     this.showToast(`Notes updated for ${shopName}.`, "success");
     this.logAdminAction("MERCHANT_VERIFY_TOGGLE", shopName, `Verification notes updated: "${newNotes}"`);
-    
+
+    await this.loadBackendData();
     this.renderAdminMerchants();
   }
 
   logAdminAction(action, target, details) {
-    const savedLogs = localStorage.getItem("ao_admin_audit_logs");
-    const logs = savedLogs ? JSON.parse(savedLogs) : [];
-    
-    logs.push({
-      timestamp: new Date().toLocaleString(),
-      action: action,
-      target: target,
-      details: details
-    });
-    
-    if (logs.length > 200) logs.shift();
-    localStorage.setItem("ao_admin_audit_logs", JSON.stringify(logs));
+    const token = localStorage.getItem("ao_jwt_token");
+    if (!token) return; // No auth — skip
+
+    fetch(`${API_BASE}/api/admin/audit-logs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ action, target, details })
+    }).catch(err => console.warn("Audit log post failed:", err));
   }
 
-  clearAdminAuditLogs() {
-    if (confirm("Are you sure you want to clear all operational audit logs? This cannot be undone.")) {
-      localStorage.removeItem("ao_admin_audit_logs");
-      this.showToast("Audit logs cleared successfully.", "success");
-      this.renderAdminAuditLogs();
+  async clearAdminAuditLogs() {
+    if (!confirm("Are you sure you want to clear all operational audit logs? This cannot be undone.")) return;
+
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/audit-logs`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        this.showToast("Failed to clear audit logs.", "error");
+        return;
+      }
+    } catch (err) {
+      console.error("Clear audit logs error:", err);
+      this.showToast("Network error clearing logs.", "error");
+      return;
     }
+
+    this.showToast("Audit logs cleared successfully.", "success");
+    this.renderAdminAuditLogs();
   }
 
-  renderAdminAuditLogs() {
+  async renderAdminAuditLogs() {
     const tbody = document.getElementById("admin-logs-table-body");
     if (!tbody) return;
 
-    const savedLogs = localStorage.getItem("ao_admin_audit_logs");
-    const logs = savedLogs ? JSON.parse(savedLogs) : [];
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:2rem 1rem; color:var(--text-muted);">Loading logs...</td></tr>`;
+
+    const token = localStorage.getItem("ao_jwt_token");
+    let logs = [];
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/audit-logs`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        logs = data.logs || [];
+      }
+    } catch (err) {
+      console.warn("Could not load audit logs from backend:", err);
+    }
 
     tbody.innerHTML = "";
     if (logs.length === 0) {
@@ -3520,11 +5251,12 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    [...logs].reverse().forEach(log => {
+    logs.forEach(log => {
       const tr = document.createElement("tr");
-      
-      const timeCell = `<span style="font-size: 0.8rem; color: var(--text-muted);">${log.timestamp}</span>`;
-      
+
+      const timestamp = log.created_at ? new Date(log.created_at).toLocaleString() : (log.timestamp || "");
+      const timeCell = `<span style="font-size: 0.8rem; color: var(--text-muted);">${timestamp}</span>`;
+
       const actionBadgeColor = {
         MERCHANT_ONBOARD: "background:#E0F2FE; color:#0369A1;",
         MERCHANT_DELETE: "background:#FEE2E2; color:#B91C1C;",
@@ -3538,12 +5270,15 @@ class AbbosseyOkaiApp {
         REPORT_TAKEDOWN: "background:#FEE2E2; color:#B91C1C;",
         TAXONOMY_ADD: "background:#DCFCE7; color:#15803D;",
         TAXONOMY_DELETE: "background:#FEE2E2; color:#B91C1C;",
-        SETTINGS_CHANGE: "background:#F3E8FF; color:#6B21A8;"
+        SETTINGS_CHANGE: "background:#F3E8FF; color:#6B21A8;",
+        PRODUCT_STATUS_CHANGE: "background:#FEF3C7; color:#B45309;",
+        MERCHANT_STATUS_CHANGE: "background:#F3E8FF; color:#6B21A8;",
+        REPORT_STATUS_CHANGE: "background:#FEF3C7; color:#B45309;"
       }[log.action] || "background:#F1F5F9; color:#475569;";
 
       const actionCell = `<span style="font-size:0.72rem; padding:2px 6px; border-radius:4px; font-weight:600; ${actionBadgeColor}">${log.action}</span>`;
-      const targetCell = `<strong style="font-size:0.8rem; color:var(--charcoal);">${log.target}</strong>`;
-      const detailsCell = `<span style="font-size:0.8rem; color:var(--text-muted);">${log.details}</span>`;
+      const targetCell = `<strong style="font-size:0.8rem; color:var(--charcoal);">${log.target || ""}</strong>`;
+      const detailsCell = `<span style="font-size:0.8rem; color:var(--text-muted);">${log.details || ""}</span>`;
 
       tr.innerHTML = `<td>${timeCell}</td><td>${actionCell}</td><td>${targetCell}</td><td>${detailsCell}</td>`;
       tbody.appendChild(tr);
@@ -3597,6 +5332,10 @@ class AbbosseyOkaiApp {
     const datalist = document.getElementById("form-brands-datalist");
     if (!datalist) return;
     
+    if (!Array.isArray(this.brands)) {
+      this.brands = ["Toyota", "Honda", "Nissan", "Hyundai", "Kia", "Mercedes-Benz", "BMW", "Audi", "Ford", "Chevrolet"];
+    }
+
     datalist.innerHTML = "";
     this.brands.forEach(brand => {
       const opt = document.createElement("option");
@@ -3686,6 +5425,8 @@ class AbbosseyOkaiApp {
       this.renderAdminOverview();
     } else if (tab === "merchants") {
       this.renderAdminMerchants();
+      // Initialize Leaflet map after panel is visible
+      setTimeout(() => this.initOnboardMap(), 150);
     } else if (tab === "listings") {
       this.renderAdminListings();
     } else if (tab === "taxonomy") {
@@ -3882,31 +5623,41 @@ class AbbosseyOkaiApp {
     });
   }
 
-  toggleMerchantSuspension(shopName) {
+  async toggleMerchantSuspension(shopName) {
     const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant) return;
+    if (!merchant || !merchant.id) return;
 
     const isSuspended = merchant.status === "Suspended";
-    merchant.status = isSuspended ? "Active" : "Suspended";
-    localStorage.setItem("ao_marketplace_merchants", JSON.stringify(this.merchants));
+    const newStatus = isSuspended ? "Active" : "Suspended";
 
-    // Update all listings for this merchant
-    this.products.forEach(p => {
-      if (p.merchant && p.merchant.shopName === shopName) {
-        p.status = isSuspended ? "Live" : "Hidden";
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        this.showToast(`Error: ${data.error || "Failed to update status."}`, "error");
+        return;
       }
-    });
-    this.saveProductsToStorage();
+    } catch (err) {
+      console.error("Toggle suspension error:", err);
+      this.showToast("Network error updating merchant status.", "error");
+      return;
+    }
 
-    this.showToast(`Merchant "${shopName}" is now ${merchant.status}.`, "success");
-    this.logAdminAction("SETTINGS_CHANGE", shopName, `Merchant status set to ${merchant.status}`);
-    
+    this.showToast(`Merchant "${shopName}" is now ${newStatus}.`, "success");
+    this.logAdminAction("MERCHANT_STATUS_CHANGE", shopName, `Merchant status set to ${newStatus}`);
+
+    await this.loadBackendData();
     this.renderAdminMerchants();
     this.renderAdminOverview();
     this.renderCatalog();
   }
 
-  onboardMerchant(event) {
+  async onboardMerchant(event) {
     event.preventDefault();
 
     const shopName = document.getElementById("onboard-merchant-shop").value.trim();
@@ -3917,81 +5668,138 @@ class AbbosseyOkaiApp {
     const coords = document.getElementById("onboard-merchant-coords").value.trim();
     const desc = document.getElementById("onboard-merchant-desc").value.trim();
 
-    if (this.merchants.some(m => m.shopName.toLowerCase() === shopName.toLowerCase())) {
-      this.showToast("A merchant with this shop name already exists.", "error");
-      return;
-    }
-    if (this.merchants.some(m => m.email.toLowerCase() === email.toLowerCase())) {
-      this.showToast("A merchant with this email already exists.", "error");
-      return;
-    }
+    // Basic validation
+    if (!shopName) { this.showToast("Shop name is required.", "error"); return; }
+    if (!email) { this.showToast("Merchant email is required.", "error"); return; }
+    if (!phone) { this.showToast("WhatsApp number is required.", "error"); return; }
+    if (!location) { this.showToast("Stall location is required.", "error"); return; }
 
-    const passcode = "AO-" + Math.floor(1000 + Math.random() * 9000);
+    // Show loading state on submit button
+    const submitBtn = event.target.querySelector("button[type=submit]");
+    const originalBtnText = submitBtn ? submitBtn.textContent : "";
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Registering..."; }
 
-    const newMerchant = {
-      shopName: shopName,
-      phone: phone,
-      email: email,
-      specialty: specialty,
-      location: location,
-      coordinates: coords || "5.5562, -0.2284",
-      description: desc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
-      avatar: null,
-      verified: true,
-      passcode: passcode,
-      status: "Active",
-      since: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
-    };
+    try {
+      // POST to Neon PostgreSQL backend — this is the source of truth
+      const res = await fetch(`${API_BASE}/api/auth/register-merchant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email,
+          phone: phone,
+          password: "AoMerchant@2024",
+          full_name: shopName,
+          shop_name: shopName,
+          shop_location: location,
+          shop_coordinates: coords || "5.5562, -0.2284",
+          shop_description: desc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
+          shop_specialty: specialty || "general"
+        })
+      });
 
-    this.merchants.push(newMerchant);
-    localStorage.setItem("ao_marketplace_merchants", JSON.stringify(this.merchants));
-    
-    document.getElementById("admin-onboard-merchant-form").reset();
-    
-    // Clear active map sector classes
-    document.querySelectorAll(".market-sector").forEach(sec => {
-      sec.classList.remove("active");
-      sec.style.borderColor = "#E2E8F0";
-      sec.style.background = "#fff";
-      sec.style.color = "var(--charcoal)";
-    });
+      const data = await res.json();
 
-    this.logAdminAction("MERCHANT_ONBOARD", shopName, `Dealer registered with phone: ${phone}, email: ${email}, passcode: ${passcode}`);
-    this.showToast(`Successfully onboarded "${shopName}" as a verified dealer!`, "success");
-    
-    // Show onboarding success details panel
-    document.getElementById("success-shop-name").textContent = shopName;
-    document.getElementById("success-shop-email").textContent = email;
-    document.getElementById("success-shop-phone").textContent = phone;
-    document.getElementById("success-shop-location").textContent = location;
-    document.getElementById("success-shop-passcode").textContent = passcode;
+      if (!res.ok) {
+        // Backend returned an error (e.g., 409 duplicate email, 400 validation)
+        const errMsg = data.error || "Registration failed. Please try again.";
+        this.showToast(`Error: ${errMsg}`, "error");
+        return;
+      }
 
-    const waBtn = document.getElementById("btn-send-whatsapp-invite");
-    if (waBtn) {
-      waBtn.onclick = () => {
-        const message = `Hello! Your shop "${shopName}" is now registered on ABBOSSEY OKAI MAGAZINE.\n\nLogin Email: ${email}\nStall Location: ${location}\nPasscode: ${passcode}\n\nAccess the portal here: http://localhost:5173/`;
-        const encoded = encodeURIComponent(message);
-        window.open(`https://api.whatsapp.com/send/?phone=${phone}&text=${encoded}`, '_blank');
+      // Backend save confirmed — now update local state
+      const passcode = "AO-" + Math.floor(1000 + Math.random() * 9000);
+      const newMerchant = {
+        id: data.merchantProfile?.id,
+        shopName: shopName,
+        phone: phone,
+        email: email,
+        specialty: specialty || "general",
+        location: location,
+        coordinates: coords || "5.5562, -0.2284",
+        description: desc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
+        avatar: null,
+        verified: true,
+        passcode: passcode,
+        status: "Active",
+        since: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
       };
+
+      this.merchants.push(newMerchant);
+
+      // Reset form
+      event.target.reset();
+
+      // Clear active map sector classes
+      document.querySelectorAll(".market-sector").forEach(sec => {
+        sec.classList.remove("active");
+        sec.style.borderColor = "#E2E8F0";
+        sec.style.background = "#fff";
+        sec.style.color = "var(--charcoal)";
+      });
+
+      this.logAdminAction("MERCHANT_ONBOARD", shopName, `Dealer registered — email: ${email}, phone: ${phone}, DB id: ${data.merchantProfile?.id}`);
+
+      // Populate success modal
+      document.getElementById("success-shop-name").textContent = shopName;
+      document.getElementById("success-shop-email").textContent = email;
+      document.getElementById("success-shop-phone").textContent = phone;
+      document.getElementById("success-shop-location").textContent = location;
+      document.getElementById("success-shop-passcode").textContent = passcode;
+
+      const waBtn = document.getElementById("btn-send-whatsapp-invite");
+      if (waBtn) {
+        waBtn.onclick = () => {
+          const message = `Hello! Your shop "${shopName}" is now registered on ABBOSSEY OKAI MAGAZINE.\n\nLogin Email: ${email}\nTemporary Password: AoMerchant@2024\nStall Location: ${location}\nYour Passcode: ${passcode}\n\nAccess your merchant portal here: http://localhost:5173/`;
+          const encoded = encodeURIComponent(message);
+          window.open(`https://api.whatsapp.com/send/?phone=${phone}&text=${encoded}`, "_blank");
+        };
+      }
+
+      document.getElementById("onboard-success-modal").style.display = "flex";
+      this.showToast(`✅ "${shopName}" successfully registered in the database!`, "success");
+
+      // Reload from backend to sync UI with real DB data
+      await this.loadBackendData();
+      this.renderAdminMerchants();
+      this.renderAdminOverview();
+
+    } catch (err) {
+      console.error("Onboard merchant error:", err);
+      this.showToast("Network error. Please check your connection and try again.", "error");
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
     }
-
-    document.getElementById("onboard-success-modal").style.display = "flex";
-
-    this.renderAdminMerchants();
-    this.renderAdminOverview();
   }
 
-  deleteMerchant(shopName) {
+  async deleteMerchant(shopName) {
     if (!confirm(`Are you sure you want to delete merchant "${shopName}"? This will also delete all their product listings permanently.`)) return;
 
-    this.merchants = this.merchants.filter(m => m.shopName !== shopName);
-    localStorage.setItem("ao_marketplace_merchants", JSON.stringify(this.merchants));
+    const merchant = this.merchants.find(m => m.shopName === shopName);
+    if (!merchant || !merchant.id) {
+      this.showToast("Merchant not found or missing ID.", "error");
+      return;
+    }
 
-    this.products = this.products.filter(p => p.merchant.shopName !== shopName);
-    this.saveProductsToStorage();
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        this.showToast(`Error: ${data.error || "Failed to delete merchant."}`, "error");
+        return;
+      }
+    } catch (err) {
+      console.error("Delete merchant error:", err);
+      this.showToast("Network error deleting merchant.", "error");
+      return;
+    }
 
-    this.logAdminAction("MERCHANT_DELETE", shopName, "Merchant and all listings deleted permanently");
     this.showToast(`Deleted merchant "${shopName}" and all associated listings.`, "success");
+
+    await this.loadBackendData();
     this.renderAdminMerchants();
     this.renderAdminOverview();
     this.renderCatalog();
@@ -4102,92 +5910,173 @@ class AbbosseyOkaiApp {
     });
   }
 
-  approveAdminListing(id) {
-    const item = this.products.find(p => p.id === id);
+  async approveAdminListing(id) {
+    const item = this.products.find(p => p.id == id || String(p.id) === String(id));
     if (!item) return;
-    
-    item.status = "Live";
-    this.saveProductsToStorage();
-    this.showToast(`Listing "${item.name}" approved successfully!`, "success");
-    this.logAdminAction("LISTING_APPROVED", item.name, `Approved pending listing from ${item.merchant.shopName}`);
-    
-    this.renderAdminListings();
-    this.renderAdminOverview();
-    this.renderCatalog();
+
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/products/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ status: "Live" })
+      });
+      if (res.ok) {
+        this.showToast(`Listing "${item.name}" approved successfully!`, "success");
+        this.logAdminAction("LISTING_APPROVED", item.name, `Approved pending listing from ${item.merchant?.shopName || 'Unknown'}`);
+      } else {
+        const errData = await res.json();
+        this.showToast(errData.error || "Failed to approve listing.", "error");
+        return;
+      }
+    } catch (e) {
+      this.showToast("Could not reach backend server.", "error");
+      return;
+    }
+    await this.loadBackendData();
   }
 
-  rejectAdminListing(id) {
-    const item = this.products.find(p => p.id === id);
+  async rejectAdminListing(id) {
+    const item = this.products.find(p => p.id == id || String(p.id) === String(id));
     if (!item) return;
 
     const reason = prompt(`Enter rejection feedback/reason for "${item.name}":`, "Please upload a clearer image of the part number.");
     if (reason === null) return;
 
-    item.status = "Hidden";
-    item.rejectionReason = reason;
-    this.saveProductsToStorage();
-    
-    this.showToast(`Listing "${item.name}" rejected.`, "success");
-    this.logAdminAction("LISTING_REJECTED", item.name, `Rejected listing from ${item.merchant.shopName}. Reason: ${reason}`);
-
-    this.renderAdminListings();
-    this.renderAdminOverview();
-    this.renderCatalog();
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/products/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ status: "Hidden" })
+      });
+      if (res.ok) {
+        this.showToast(`Listing "${item.name}" rejected.`, "success");
+        this.logAdminAction("LISTING_REJECTED", item.name, `Rejected listing from ${item.merchant?.shopName || 'Unknown'}. Reason: ${reason}`);
+      } else {
+        const errData = await res.json();
+        this.showToast(errData.error || "Failed to reject listing.", "error");
+        return;
+      }
+    } catch (e) {
+      this.showToast("Could not reach backend server.", "error");
+      return;
+    }
+    await this.loadBackendData();
   }
 
-  toggleAdminListingVisibility(id) {
-    const item = this.products.find(p => p.id === id);
+  async toggleAdminListingVisibility(id) {
+    const item = this.products.find(p => p.id == id || String(p.id) === String(id));
     if (!item) return;
 
     const prevStatus = item.status;
-    item.status = item.status === "Live" ? "Hidden" : "Live";
-    this.saveProductsToStorage();
-    
-    this.showToast(`Listing visibility set to ${item.status}.`, "success");
-    this.logAdminAction("SETTINGS_CHANGE", item.name, `Visibility status changed from ${prevStatus} to ${item.status}`);
-    
-    this.renderAdminListings();
-    this.renderAdminOverview();
-    this.renderCatalog();
+    const newStatus = item.status === "Live" ? "Hidden" : "Live";
+    const token = localStorage.getItem("ao_jwt_token");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/products/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        this.showToast(`Listing visibility set to ${newStatus}.`, "success");
+        this.logAdminAction("SETTINGS_CHANGE", item.name, `Visibility status changed from ${prevStatus} to ${newStatus}`);
+      } else {
+        const errData = await res.json();
+        this.showToast(errData.error || "Failed to update visibility.", "error");
+        return;
+      }
+    } catch (e) {
+      this.showToast("Could not reach backend server.", "error");
+      return;
+    }
+    await this.loadBackendData();
   }
 
-  toggleAdminListingStock(id) {
-    const item = this.products.find(p => p.id === id);
+  async toggleAdminListingStock(id) {
+    const item = this.products.find(p => p.id == id || String(p.id) === String(id));
     if (!item) return;
 
-    item.stock = item.stock === "In Stock" ? "Out of Stock" : "In Stock";
-    this.saveProductsToStorage();
-    
-    this.logAdminAction("LISTING_STOCK_TOGGLE", item.name, `Stock status set to ${item.stock}`);
-    this.renderAdminListings();
-    this.renderAdminOverview();
-    this.renderCatalog();
-    this.showToast(`Listing stock status set to ${item.stock}`, "success");
+    const newStock = item.stock === "In Stock" ? "Out of Stock" : "In Stock";
+    const token = localStorage.getItem("ao_jwt_token");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/products/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ stock: newStock })
+      });
+      if (res.ok) {
+        this.showToast(`Listing stock status set to ${newStock}`, "success");
+        this.logAdminAction("LISTING_STOCK_TOGGLE", item.name, `Stock status set to ${newStock}`);
+      } else {
+        const errData = await res.json();
+        this.showToast(errData.error || "Failed to update stock.", "error");
+        return;
+      }
+    } catch (e) {
+      this.showToast("Could not reach backend server.", "error");
+      return;
+    }
+    await this.loadBackendData();
   }
 
-  deleteAdminListing(id) {
+  async deleteAdminListing(id) {
     if (!confirm("Are you sure you want to take down this listing permanently?")) return;
 
-    const idx = this.products.findIndex(p => p.id === id);
-    if (idx === -1) return;
+    const item = this.products.find(p => p.id == id || String(p.id) === String(id));
+    const name = item ? item.name : "Unknown Product";
+    const token = localStorage.getItem("ao_jwt_token");
 
-    const name = this.products[idx].name;
-    this.products.splice(idx, 1);
-    this.saveProductsToStorage();
-
-    this.logAdminAction("LISTING_DELETE", name, "Listing taken down permanently by admin");
-    this.showToast(`Successfully took down listing: "${name}"`, "success");
-    this.renderAdminListings();
-    this.renderAdminOverview();
-    this.renderCatalog();
+    try {
+      const res = await fetch(`${API_BASE}/api/products/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": token ? `Bearer ${token}` : "" }
+      });
+      if (res.ok) {
+        this.showToast(`Successfully took down listing: "${name}"`, "success");
+        this.logAdminAction("LISTING_DELETE", name, "Listing taken down permanently by admin");
+      } else {
+        const errData = await res.json();
+        this.showToast(errData.error || "Failed to take down listing.", "error");
+        return;
+      }
+    } catch (e) {
+      this.showToast("Could not reach backend server.", "error");
+      return;
+    }
+    await this.loadBackendData();
   }
 
-  renderAdminReports() {
+  async renderAdminReports() {
     const tbody = document.getElementById("admin-reports-table-body");
     if (!tbody) return;
 
-    const savedReports = localStorage.getItem("ao_reported_listings");
-    const reports = savedReports ? JSON.parse(savedReports) : [];
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem 1rem; color:var(--text-muted);">Loading reports...</td></tr>`;
+
+    let reports = [];
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/reports`, {
+        headers: { "Authorization": token ? `Bearer ${token}` : "" }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        reports = (data.reports || []).filter(r => r.status === "open");
+      }
+    } catch (e) {
+      console.warn("Could not load reports from backend:", e);
+    }
+
+    // Fallback: also check localStorage legacy reports
+    try {
+      const savedReports = localStorage.getItem("ao_reported_listings");
+      const localReports = savedReports ? JSON.parse(savedReports) : [];
+      if (localReports.length > 0 && reports.length === 0) {
+        reports = localReports;
+      }
+    } catch (e) {}
 
     tbody.innerHTML = "";
     if (reports.length === 0) {
@@ -4197,30 +6086,37 @@ class AbbosseyOkaiApp {
 
     reports.forEach(r => {
       const tr = document.createElement("tr");
+      const productName = r.product_name || r.productName || "Unknown Product";
+      const shopName = r.merchant_shop_name || r.shopName || "Unknown Seller";
+      const reason = r.reason || "No reason provided";
+      const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : (r.date || "");
+      const reportId = r.id;
+      const productId = r.product_id || r.productId;
 
       const infoCell = `
         <div style="display:flex; flex-direction:column;">
-          <strong style="font-size:0.85rem; color:var(--charcoal);">${r.productName}</strong>
-          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-shop"></i> Seller: ${r.shopName}</span>
+          <strong style="font-size:0.85rem; color:var(--charcoal);">${productName}</strong>
+          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-shop"></i> Seller: ${shopName}</span>
         </div>
       `;
 
       const reasonCell = `
         <div style="display:flex; flex-direction:column; font-size:0.85rem;">
-          <span style="color:#DC2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> ${r.reason}</span>
-          <span style="font-size:0.75rem; color:var(--text-muted);">${r.date}</span>
+          <span style="color:#DC2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> ${reason}</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
+          ${r.details ? `<span style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${r.details}</span>` : ''}
         </div>
       `;
 
       const actionCell = `
         <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-          <button class="btn btn-secondary btn-sm" style="color:var(--whatsapp-color); border-color:var(--whatsapp-color); padding:3px 6px; font-size:0.75rem;" onclick="app.dismissAdminReport('${r.id}')">
+          <button class="btn btn-secondary btn-sm" style="color:var(--whatsapp-color); border-color:var(--whatsapp-color); padding:3px 6px; font-size:0.75rem;" onclick="app.dismissAdminReport('${reportId}')">
             <i class="fa-solid fa-check"></i> Dismiss
           </button>
-          <button class="btn btn-secondary btn-sm" style="color:var(--accent-color); border-color:var(--accent-color); padding:3px 6px; font-size:0.75rem;" onclick="app.warnMerchantFromReport('${r.id}', '${r.shopName}')">
+          <button class="btn btn-secondary btn-sm" style="color:var(--accent-color); border-color:var(--accent-color); padding:3px 6px; font-size:0.75rem;" onclick="app.warnMerchantFromReport('${reportId}', '${shopName}')">
             <i class="fa-solid fa-circle-exclamation"></i> Warn Seller
           </button>
-          <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:3px 6px; font-size:0.75rem;" onclick="app.resolveAdminReportTakedown('${r.id}', '${r.productId}')">
+          <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:3px 6px; font-size:0.75rem;" onclick="app.resolveAdminReportTakedown('${reportId}', '${productId}')">
             <i class="fa-solid fa-trash"></i> Takedown
           </button>
         </div>
@@ -4231,58 +6127,102 @@ class AbbosseyOkaiApp {
     });
   }
 
-  dismissAdminReport(reportId) {
-    const savedReports = localStorage.getItem("ao_reported_listings");
-    let reports = savedReports ? JSON.parse(savedReports) : [];
-    const report = reports.find(r => r.id === reportId);
-    reports = reports.filter(r => r.id !== reportId);
-    localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
-
-    this.showToast("Report dismissed.", "success");
-    this.logAdminAction("REPORT_DISMISS", report ? report.productName : "Unknown Product", "Admin dismissed buyer report flag");
-    this.renderAdminReports();
-    this.renderAdminOverview();
+  async dismissAdminReport(reportId) {
+    const token = localStorage.getItem("ao_jwt_token");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ status: "dismissed" })
+      });
+      if (res.ok) {
+        this.showToast("Report dismissed.", "success");
+        this.logAdminAction("REPORT_DISMISS", `Report #${reportId}`, "Admin dismissed buyer report flag");
+      } else {
+        this.showToast("Failed to dismiss report.", "error");
+        return;
+      }
+    } catch (e) {
+      // Fallback to localStorage for legacy reports
+      const savedReports = localStorage.getItem("ao_reported_listings");
+      let reports = savedReports ? JSON.parse(savedReports) : [];
+      reports = reports.filter(r => r.id !== reportId);
+      localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
+      this.showToast("Report dismissed.", "success");
+      this.logAdminAction("REPORT_DISMISS", `Report #${reportId}`, "Admin dismissed buyer report flag");
+    }
+    await this.renderAdminReports();
+    await this.loadBackendData();
   }
 
-  resolveAdminReportTakedown(reportId, productId) {
-    const item = this.products.find(p => p.id === productId);
+  async resolveAdminReportTakedown(reportId, productId) {
+    const item = this.products.find(p => p.id == productId || String(p.id) === String(productId));
     const productName = item ? item.name : "Unknown Product";
+    const token = localStorage.getItem("ao_jwt_token");
 
-    this.products = this.products.filter(p => p.id !== productId);
-    this.saveProductsToStorage();
+    // 1. Delete the product via API
+    try {
+      const res = await fetch(`${API_BASE}/api/products/${productId}`, {
+        method: "DELETE",
+        headers: { "Authorization": token ? `Bearer ${token}` : "" }
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        this.showToast(errData.error || "Failed to take down listing.", "error");
+        return;
+      }
+    } catch (e) {
+      this.showToast("Could not reach backend server.", "error");
+      return;
+    }
 
-    const savedReports = localStorage.getItem("ao_reported_listings");
-    let reports = savedReports ? JSON.parse(savedReports) : [];
-    reports = reports.filter(r => r.id !== reportId);
-    localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
+    // 2. Resolve the report via API
+    try {
+      await fetch(`${API_BASE}/api/admin/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ status: "resolved" })
+      });
+    } catch (e) {
+      // Fallback: remove from localStorage
+      const savedReports = localStorage.getItem("ao_reported_listings");
+      let reports = savedReports ? JSON.parse(savedReports) : [];
+      reports = reports.filter(r => r.id !== reportId);
+      localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
+    }
 
     this.showToast("Listing taken down and report resolved.", "success");
-    this.logAdminAction("REPORT_TAKEDOWN", productName, `Listing taken down permanently due to buyer flag`);
-    this.renderAdminReports();
-    this.renderAdminListings();
-    this.renderAdminOverview();
-    this.renderCatalog();
+    this.logAdminAction("REPORT_TAKEDOWN", productName, "Listing taken down permanently due to buyer flag");
+    await this.loadBackendData();
   }
 
-  warnMerchantFromReport(reportId, shopName) {
-    const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant) return;
+  async warnMerchantFromReport(reportId, shopName) {
+    const token = localStorage.getItem("ao_jwt_token");
 
-    merchant.warnings = (merchant.warnings || 0) + 1;
-    localStorage.setItem("ao_marketplace_merchants", JSON.stringify(this.merchants));
-
-    const savedReports = localStorage.getItem("ao_reported_listings");
-    let reports = savedReports ? JSON.parse(savedReports) : [];
-    const report = reports.find(r => r.id === reportId);
-    reports = reports.filter(r => r.id !== reportId);
-    localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
-
-    this.showToast(`Warning issued to dealer "${shopName}". Total warnings: ${merchant.warnings}`, "success");
-    this.logAdminAction("SETTINGS_CHANGE", shopName, `Warning issued due to listing flag on "${report ? report.productName : "unknown listing"}". Total warnings: ${merchant.warnings}`);
-    
-    this.renderAdminReports();
-    this.renderAdminOverview();
-    this.renderAdminMerchants();
+    // 1. Update the report status via API
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ status: "warned" })
+      });
+      if (res.ok) {
+        this.showToast(`Warning issued to dealer "${shopName}".`, "success");
+        this.logAdminAction("SETTINGS_CHANGE", shopName, `Warning issued due to listing flag. Merchant: ${shopName}`);
+      } else {
+        this.showToast("Failed to issue warning.", "error");
+        return;
+      }
+    } catch (e) {
+      // Fallback to localStorage for legacy reports
+      const savedReports = localStorage.getItem("ao_reported_listings");
+      let reports = savedReports ? JSON.parse(savedReports) : [];
+      reports = reports.filter(r => r.id !== reportId);
+      localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
+      this.showToast(`Warning issued to dealer "${shopName}".`, "success");
+      this.logAdminAction("SETTINGS_CHANGE", shopName, `Warning issued due to listing flag. Merchant: ${shopName}`);
+    }
+    await this.loadBackendData();
   }
 
   renderAdminTaxonomy() {
@@ -4678,26 +6618,23 @@ class AbbosseyOkaiApp {
   }
 
   applyBrandPartsSearch() {
-    const model = document.getElementById("select-brand-model").value;
-    const year = document.getElementById("select-brand-year").value;
-    const query = document.getElementById("brand-part-search-input").value.trim();
-    
-    if (!model || !year) {
-      this.showToast("Please select both a model and a year to proceed!", "warning");
-      return;
-    }
+    const model = document.getElementById("select-brand-model") ? document.getElementById("select-brand-model").value : "";
+    const year = document.getElementById("select-brand-year") ? document.getElementById("select-brand-year").value : "";
+    const query = document.getElementById("brand-part-search-input") ? document.getElementById("brand-part-search-input").value.trim() : "";
     
     this.activeMainType = "parts";
     
     // Update navbar buttons
-    document.getElementById("nav-parts").classList.add("active");
-    document.getElementById("nav-accessories").classList.remove("active");
+    const partsNav = document.getElementById("nav-parts");
+    const accNav = document.getElementById("nav-accessories");
+    if (partsNav) partsNav.classList.add("active");
+    if (accNav) accNav.classList.remove("active");
     
-    // Filter by vehicle selector parameters
-    this.activeFilters.make = this.selectedBrandForSearch;
+    // Filter by vehicle brand and optional model/year
+    this.activeFilters.make = this.selectedBrandForSearch || "";
     this.activeFilters.model = model;
     this.activeFilters.year = year;
-    this.activeFilters.partsCategory = ""; // Clear category
+    this.activeFilters.partsCategory = ""; // Clear category filter
     this.activeFilters.brands = []; // Clear brands filter so it doesn't conflict with make compatibility
     
     this.searchQuery = query.toLowerCase();
@@ -4710,20 +6647,19 @@ class AbbosseyOkaiApp {
     
     // Sync main selector if possible
     const makeSelect = document.getElementById("select-vehicle-make");
-    if (makeSelect) {
-      // Find exact make match in taxonomy keys
+    if (makeSelect && this.selectedBrandForSearch) {
       const exactKey = Object.keys(VEHICLE_TAXONOMY).find(k => k.toLowerCase() === this.selectedBrandForSearch.toLowerCase());
       if (exactKey) {
         makeSelect.value = exactKey;
         this.onMakeChange();
         
         const modelSelect = document.getElementById("select-vehicle-model");
-        if (modelSelect) {
+        if (modelSelect && model) {
           modelSelect.value = model;
           this.onModelChange();
           
           const yearSelect = document.getElementById("select-vehicle-year");
-          if (yearSelect) {
+          if (yearSelect && year) {
             yearSelect.value = year;
           }
         }
@@ -4737,7 +6673,20 @@ class AbbosseyOkaiApp {
     this.scrollToMarketplace();
     this.toggleBrandSearchModal(false);
     this.switchAppView("storefront");
-    this.showToast(`Showing parts for ${this.selectedBrandForSearch} ${model} ${year}`, "success");
+
+    let toastMsg = `Showing parts for ${this.selectedBrandForSearch}`;
+    if (query && model && year) {
+      toastMsg = `Showing "${query}" for ${this.selectedBrandForSearch} ${model} (${year})`;
+    } else if (query && model) {
+      toastMsg = `Showing "${query}" for ${this.selectedBrandForSearch} ${model}`;
+    } else if (query) {
+      toastMsg = `Showing "${query}" for ${this.selectedBrandForSearch}`;
+    } else if (model && year) {
+      toastMsg = `Showing parts for ${this.selectedBrandForSearch} ${model} (${year})`;
+    } else if (model) {
+      toastMsg = `Showing parts for ${this.selectedBrandForSearch} ${model}`;
+    }
+    this.showToast(toastMsg, "success");
   }
 
   applyBrandAccessorySearch(category, element) {

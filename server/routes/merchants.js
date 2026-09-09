@@ -59,6 +59,14 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+// Ghana Bounding Box for geospatial validation
+const GHANA_BOUNDS = {
+  minLat: 4.5,
+  maxLat: 11.5,
+  minLng: -3.5,
+  maxLng: 1.5,
+};
+
 // ─── PUT /api/merchants/:id ─────────────────────────────
 // Update merchant profile (owner or admin)
 router.put("/:id", requireAuth, async (req, res) => {
@@ -78,8 +86,19 @@ router.put("/:id", requireAuth, async (req, res) => {
 
     const {
       shop_name, phone, email, location, coordinates,
-      description, specialty, avatar_url
+      description, specialty, avatar_url, latitude, longitude, location_data
     } = req.body;
+
+    let parsedLat = latitude !== undefined ? parseFloat(latitude) : null;
+    let parsedLng = longitude !== undefined ? parseFloat(longitude) : null;
+
+    if (coordinates && (!parsedLat || !parsedLng)) {
+      const parts = coordinates.split(",").map((s) => parseFloat(s.trim()));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        parsedLat = parts[0];
+        parsedLng = parts[1];
+      }
+    }
 
     const [updated] = await sql`
       UPDATE merchants SET
@@ -88,6 +107,9 @@ router.put("/:id", requireAuth, async (req, res) => {
         email = COALESCE(${email || null}, email),
         location = COALESCE(${location || null}, location),
         coordinates = COALESCE(${coordinates || null}, coordinates),
+        latitude = COALESCE(${parsedLat}, latitude),
+        longitude = COALESCE(${parsedLng}, longitude),
+        location_data = COALESCE(${location_data ? JSON.stringify(location_data) : null}::jsonb, location_data),
         description = COALESCE(${description || null}, description),
         specialty = COALESCE(${specialty || null}, specialty),
         avatar_url = COALESCE(${avatar_url || null}, avatar_url),
@@ -100,6 +122,86 @@ router.put("/:id", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("Update merchant error:", err);
     res.status(500).json({ error: "Failed to update merchant" });
+  }
+});
+
+// ─── PUT /api/merchants/:id/location ────────────────────
+// Update merchant shop location with geospatial validation & provenance
+router.put("/:id/location", requireAuth, async (req, res) => {
+  try {
+    const merchantId = req.params.id;
+
+    // Verify ownership or admin
+    const merchants = await sql`SELECT * FROM merchants WHERE id = ${merchantId}`;
+    if (merchants.length === 0) {
+      return res.status(404).json({ error: "Merchant not found" });
+    }
+
+    const merchant = merchants[0];
+    if (merchant.user_id !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized to update this merchant location" });
+    }
+
+    const {
+      latitude,
+      longitude,
+      accuracy_meters,
+      source,
+      formatted_address,
+      custom_location_text,
+      landmarks,
+      stall_number
+    } = req.body;
+
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: "Valid latitude and longitude are required." });
+    }
+
+    // Validate coordinates fall within Ghana's bounding box
+    if (lat < GHANA_BOUNDS.minLat || lat > GHANA_BOUNDS.maxLat || lng < GHANA_BOUNDS.minLng || lng > GHANA_BOUNDS.maxLng) {
+      return res.status(400).json({
+        error: `Selected coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}) fall outside Ghana's geographic boundaries (${GHANA_BOUNDS.minLat}°N to ${GHANA_BOUNDS.maxLat}°N, ${GHANA_BOUNDS.minLng}°W to ${GHANA_BOUNDS.maxLng}°E). Please pinpoint a valid location in Ghana.`,
+      });
+    }
+
+    const locationMetadata = {
+      latitude: lat,
+      longitude: lng,
+      accuracy_meters: typeof accuracy_meters === "number" ? Math.round(accuracy_meters) : 15,
+      source: ["manual_pin", "gps", "search", "preset"].includes(source) ? source : "manual_pin",
+      formatted_address: formatted_address || "Abossey Okai, Accra, Ghana",
+      custom_location_text: custom_location_text || null,
+      landmarks: landmarks || null,
+      stall_number: stall_number || null,
+      captured_at: new Date().toISOString(),
+    };
+
+    const coordsString = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    const finalLocationString = custom_location_text || formatted_address || `Abossey Okai (${coordsString})`;
+
+    const [updated] = await sql`
+      UPDATE merchants SET
+        latitude = ${lat},
+        longitude = ${lng},
+        coordinates = ${coordsString},
+        location = ${finalLocationString},
+        location_data = ${JSON.stringify(locationMetadata)}::jsonb,
+        updated_at = NOW()
+      WHERE id = ${merchantId}
+      RETURNING *
+    `;
+
+    res.json({
+      message: "Shop location updated successfully",
+      merchant: updated,
+      location_data: locationMetadata,
+    });
+  } catch (err) {
+    console.error("Update merchant location error:", err);
+    res.status(500).json({ error: "Failed to update merchant location" });
   }
 });
 
@@ -160,6 +262,38 @@ router.patch("/:id/status", requireAuth, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Merchant status error:", err);
     res.status(500).json({ error: "Failed to update merchant status" });
+  }
+});
+
+// ─── DELETE /api/merchants/:id ──────────────────────────
+// Delete a merchant entirely (admin only)
+router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const merchants = await sql`SELECT * FROM merchants WHERE id = ${req.params.id}`;
+    if (merchants.length === 0) {
+      return res.status(404).json({ error: "Merchant not found" });
+    }
+
+    const merchant = merchants[0];
+
+    // Delete user account too (cascades merchants + products via FK)
+    if (merchant.user_id) {
+      await sql`DELETE FROM users WHERE id = ${merchant.user_id}`;
+    } else {
+      // Fallback: delete merchant directly (products cascade via FK)
+      await sql`DELETE FROM merchants WHERE id = ${req.params.id}`;
+    }
+
+    // Log admin action
+    await sql`
+      INSERT INTO audit_logs (admin_id, action, target, details)
+      VALUES (${req.user.id}, 'MERCHANT_DELETE', ${merchant.shop_name}, ${'Merchant and all listings deleted permanently'})
+    `;
+
+    res.json({ message: "Merchant deleted", merchant });
+  } catch (err) {
+    console.error("Delete merchant error:", err);
+    res.status(500).json({ error: "Failed to delete merchant" });
   }
 });
 
