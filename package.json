@@ -2,16 +2,26 @@
   "name": "abbossey-okai-magazine",
   "version": "1.0.0",
   "description": "Abossey Okai Auto Parts & Accessories E-Commerce Marketplace Platform",
+  "type": "module",
   "main": "index.html",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/index.js"
   },
   "devDependencies": {
     "vite": "^5.2.0"
   },
   "dependencies": {
-    "firebase": "^12.17.0"
+    "@neondatabase/serverless": "^0.10.4",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase": "^12.17.0",
+    "firebase-admin": "^14.2.0",
+    "jsonwebtoken": "^9.0.2"
   }
 }
+

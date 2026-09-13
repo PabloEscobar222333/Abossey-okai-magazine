@@ -154,10 +154,18 @@ let CAR_ACCESSORY_CATEGORIES = JSON.parse(localStorage.getItem("ao_accessory_cat
   "Safety"
 ];
 
-// Dynamic data loaded live from Neon PostgreSQL Backend API (/api/*)
-
-// Firebase Auth handles Google OAuth — no manual Client ID needed
-const API_BASE = "http://localhost:3001";
+// Dynamic API Base:
+// - When deployed (e.g. Vercel), use "" so requests go to same-origin /api/*
+// - When running locally on Vite dev server (5173/4173), route to local backend server (3001)
+const API_BASE = (() => {
+  if (typeof window !== "undefined") {
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocalhost && window.location.port !== "3001") {
+      return "http://localhost:3001";
+    }
+  }
+  return "";
+})();
 
 class AbbosseyOkaiApp {
   constructor() {
