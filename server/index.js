@@ -46,6 +46,11 @@ app.use(cors({
 
 app.use(express.json({ limit: "10mb" }));
 
+app.use((req, res, next) => {
+  console.log(`[API REQUEST] ${req.method} ${req.url} (originalUrl: ${req.originalUrl || req.url})`);
+  next();
+});
+
 // ─── Health Check ───────────────────────────────────────
 const handleHealth = async (req, res) => {
   try {
@@ -80,8 +85,8 @@ app.use("/brands", brandRoutes);
 app.use("/admin", adminRoutes);
 
 // ─── 404 Handler ────────────────────────────────────────
-app.use("/api/*", (req, res) => {
-  res.status(404).json({ error: "API endpoint not found" });
+app.use((req, res) => {
+  res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.url}` });
 });
 
 // ─── Error Handler ──────────────────────────────────────
