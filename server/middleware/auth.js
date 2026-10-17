@@ -3,7 +3,24 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || "ao_fallback_secret";
+const IS_PRODUCTION = !!process.env.VERCEL || process.env.NODE_ENV === "production";
+
+// Never fall back to a known secret in production: anyone could forge admin tokens with it.
+function getJwtSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (IS_PRODUCTION) {
+    throw new Error("JWT_SECRET environment variable is not set. Add it in Vercel Project Settings > Environment Variables.");
+  }
+  return "ao_local_dev_secret";
+}
+
+if (!process.env.JWT_SECRET) {
+  console.warn(
+    IS_PRODUCTION
+      ? "❌ JWT_SECRET is not set — all logins will fail until it is configured."
+      : "⚠️ JWT_SECRET is not set — using a local development secret."
+  );
+}
 
 // Generate a JWT token for a user
 export function generateToken(user) {
@@ -14,7 +31,7 @@ export function generateToken(user) {
       role: user.role,
       full_name: user.full_name,
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: "7d" }
   );
 }
@@ -28,7 +45,7 @@ export function requireAuth(req, res, next) {
 
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     req.user = decoded;
     next();
   } catch (err) {
@@ -58,7 +75,7 @@ export function optionalAuth(req, res, next) {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.split(" ")[1];
     try {
-      req.user = jwt.verify(token, JWT_SECRET);
+      req.user = jwt.verify(token, getJwtSecret());
     } catch (err) {
       // Invalid token — just continue without user
     }

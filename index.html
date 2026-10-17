@@ -914,7 +914,7 @@
               <!-- 1. Header Card -->
               <div class="settings-header-card">
                 <div class="settings-header-left">
-                  <button type="button" class="settings-back-btn" onclick="app.switchMerchantTab('overview')" aria-label="Go Back">
+                  <button type="button" class="settings-back-btn" onclick="app.switchDashboardTab('inventory')" aria-label="Go Back">
                     <i class="fa-solid fa-arrow-left"></i>
                   </button>
                   <div class="settings-header-text">
@@ -1015,7 +1015,7 @@
                 <!-- 5. Action Footer Buttons -->
                 <div class="settings-footer-actions">
                   <div class="footer-top-row">
-                    <button type="button" class="btn btn-settings-cancel" onclick="app.switchMerchantTab('overview')">Cancel</button>
+                    <button type="button" class="btn btn-settings-cancel" onclick="app.switchDashboardTab('inventory')">Cancel</button>
                     <button type="button" class="btn btn-settings-preview" onclick="app.previewMerchantShop()">
                       <i class="fa-regular fa-eye"></i> Preview Shop
                     </button>
@@ -1029,6 +1029,33 @@
                   <i class="fa-solid fa-shield-halved"></i> All changes are saved securely and will be visible to customers.
                 </div>
 
+              </form>
+
+              <!-- Change Password Card -->
+              <form id="merchant-password-form" onsubmit="app.changeMerchantPassword(event)">
+                <div class="settings-section-card">
+                  <div class="section-card-header">
+                    <div class="section-icon-badge blue-badge">
+                      <i class="fa-solid fa-key"></i>
+                    </div>
+                    <h3>Change Password</h3>
+                  </div>
+
+                  <div class="form-row-2col">
+                    <div class="form-group">
+                      <label for="settings-current-password">Current Password</label>
+                      <input type="password" id="settings-current-password" autocomplete="current-password" placeholder="Temporary or current password">
+                    </div>
+                    <div class="form-group">
+                      <label for="settings-new-password">New Password</label>
+                      <input type="password" id="settings-new-password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn btn-secondary" id="change-password-btn">
+                    <i class="fa-solid fa-key"></i> Update Password
+                  </button>
+                </div>
               </form>
 
             </div>
@@ -1235,7 +1262,7 @@
               <div class="dashboard-profile-avatar" id="admin-avatar-container" style="background: var(--accent-color); color: #fff;">A</div>
             </div>
             <h3 class="dashboard-shop-name" id="admin-display-name">Admin Kwame</h3>
-            <span class="dashboard-shop-location" id="admin-display-email"><i class="fa-solid fa-envelope"></i> korantenghenry2012@gmail.com</span>
+            <span class="dashboard-shop-location" id="admin-display-email"><i class="fa-solid fa-envelope"></i> <span id="admin-display-email-text"></span></span>
           </div>
 
           <ul class="dashboard-menu">
@@ -2063,7 +2090,16 @@
             <form id="google-email-form" onsubmit="app.handleGoogleEmailSubmit(event)" style="margin-bottom: 1rem;">
               <div class="form-group" style="margin-bottom: 0.75rem;">
                 <label for="auth-google-email-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-envelope"></i> Enter Email Address</label>
-                <input type="email" id="auth-google-email-input" placeholder="e.g. merchant@gmail.com" required style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
+                <input type="email" id="auth-google-email-input" placeholder="e.g. merchant@gmail.com" required autocomplete="username" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
+              </div>
+              <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label for="auth-email-password-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-lock"></i> Password</label>
+                <div style="position: relative;">
+                  <input type="password" id="auth-email-password-input" placeholder="Your password" required autocomplete="current-password" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem; padding-right: 2.5rem;">
+                  <button type="button" onclick="app.togglePasswordVisibility('auth-email-password-input', this)" aria-label="Show or hide password" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted);">
+                    <i class="fa-regular fa-eye-slash"></i>
+                  </button>
+                </div>
               </div>
               <button type="submit" class="btn btn-primary" style="width: 100%;">
                 Log in with Email
@@ -2073,150 +2109,28 @@
             <div class="auth-divider">or</div>
 
             <!-- Option 3: Enter Phone Number -->
-            <form id="merchant-login-form" onsubmit="app.simulatePhoneAuth(event)">
+            <form id="merchant-login-form" onsubmit="app.handlePhoneLoginSubmit(event)">
               <div class="form-group" style="margin-bottom: 0.75rem;">
                 <label for="auth-phone-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-phone"></i> Enter Phone Number</label>
-                <input type="text" id="auth-phone-input" placeholder="e.g. +233 24 123 4567" required style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
+                <input type="tel" id="auth-phone-input" placeholder="e.g. +233 24 123 4567" required autocomplete="tel" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
               </div>
-              
-              <div id="auth-sms-code-group" style="display: none; margin-bottom: 1rem;">
-                <div class="form-group">
-                  <label for="auth-sms-input" style="font-size: 0.85rem; font-weight: 600;">Enter 6-Digit SMS Verification Code</label>
-                  <input type="text" id="auth-sms-input" placeholder="Enter code sent to your phone">
-                </div>
-              </div>
-
-              <button type="submit" class="btn btn-secondary" id="auth-submit-btn" style="width: 100%;">
-                Send Verification Code
-              </button>
-            </form>
-          </div>
-
-          <!-- VIEW 3: Admin Password Input -->
-          <div id="auth-view-admin-password" class="auth-admin-card-view" style="display: none;">
-            
-            <div class="admin-access-subtitle">Admin Access</div>
-
-            <form id="admin-password-form" onsubmit="app.handleAdminPasswordSubmit(event)">
-              <div class="form-group" style="margin-bottom: 1.25rem;">
-                <label for="auth-admin-password-input" class="admin-input-label">
-                  <i class="fa-solid fa-lock"></i>
-                  Admin Password
-                </label>
-                <div class="admin-password-input-wrapper">
-                  <input type="password" id="auth-admin-password-input" placeholder="••••••••" required>
-                  <button type="button" class="admin-pass-toggle-btn" onclick="app.toggleAdminPasswordVisibility()" aria-label="Toggle password visibility">
-                    <i class="fa-regular fa-eye-slash" id="toggle-admin-pass-btn"></i>
+              <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label for="auth-phone-password-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-lock"></i> Password</label>
+                <div style="position: relative;">
+                  <input type="password" id="auth-phone-password-input" placeholder="Your password" required autocomplete="current-password" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem; padding-right: 2.5rem;">
+                  <button type="button" onclick="app.togglePasswordVisibility('auth-phone-password-input', this)" aria-label="Show or hide password" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted);">
+                    <i class="fa-regular fa-eye-slash"></i>
                   </button>
                 </div>
               </div>
-
-              <button type="submit" class="btn btn-admin-verify-submit">
-                Verify &amp; Log In
+              <button type="submit" class="btn btn-secondary" style="width: 100%;">
+                Log in with Phone
               </button>
             </form>
-
-            <div class="admin-login-note">Log in as Admin to manage content</div>
-
-            <button type="button" class="admin-back-home-btn" onclick="app.showAuthView('initial')">
-              <i class="fa-solid fa-chevron-left"></i> Back to Home
-            </button>
           </div>
 
         </div>
 
-      </div>
-    </div>
-
-    <!-- NEW USER ONBOARDING MODAL -->
-    <div class="auth-overlay" id="onboarding-modal" onclick="app.onOverlayClick(event, 'onboarding-modal')">
-      <div class="onboarding-card" id="onboarding-card-panel">
-
-        <div class="onboarding-header">
-          <div class="onboarding-step-indicator">
-            <div class="step-dot active" id="onboard-step-1-dot"></div>
-            <div class="step-line" id="onboard-step-line"></div>
-            <div class="step-dot" id="onboard-step-2-dot"></div>
-          </div>
-          <h3 class="onboarding-title" id="onboarding-title-text">Welcome! Tell us about yourself</h3>
-          <p class="onboarding-subtitle" id="onboarding-subtitle-text">This helps buyers find and trust your shop</p>
-        </div>
-
-        <form id="onboarding-form" onsubmit="app.submitOnboarding(event)">
-
-          <!-- Step 1: Personal Details -->
-          <div class="onboarding-step" id="onboarding-step-1">
-            <div class="onboarding-body">
-
-              <div class="form-group">
-                <label for="onboard-fullname"><i class="fa-solid fa-user"></i> Full Name</label>
-                <input type="text" id="onboard-fullname" placeholder="e.g. Kwame Mensah" required>
-              </div>
-
-              <div class="form-group">
-                <label for="onboard-email"><i class="fa-solid fa-envelope"></i> Email Address</label>
-                <input type="email" id="onboard-email" placeholder="e.g. kwame@email.com">
-              </div>
-
-              <div class="form-group">
-                <label for="onboard-phone"><i class="fa-solid fa-phone"></i> Phone / WhatsApp Number</label>
-                <input type="tel" id="onboard-phone" placeholder="e.g. +233 24 123 4567" required>
-              </div>
-
-            </div>
-
-            <div class="onboarding-footer">
-              <button type="button" class="btn btn-secondary" onclick="app.cancelOnboarding()">Cancel</button>
-              <button type="button" class="btn btn-primary" onclick="app.goToOnboardingStep(2)">
-                Next: Shop Details <i class="fa-solid fa-arrow-right"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- Step 2: Shop Details -->
-          <div class="onboarding-step" id="onboarding-step-2" style="display: none;">
-            <div class="onboarding-body">
-
-              <div class="form-group">
-                <label for="onboard-shop-name"><i class="fa-solid fa-shop"></i> Shop / Stall Name</label>
-                <input type="text" id="onboard-shop-name" placeholder="e.g. Elite Parts Center" required>
-              </div>
-
-              <div class="form-group">
-                <label for="onboard-shop-location"><i class="fa-solid fa-location-dot"></i> Shop Location / Address</label>
-                <input type="text" id="onboard-shop-location" placeholder="e.g. Stall B12, Main Boulevard, Abossey Okai" required>
-              </div>
-
-              <div class="form-group">
-                <label for="onboard-shop-specialty"><i class="fa-solid fa-screwdriver-wrench"></i> Specialization</label>
-                <select id="onboard-shop-specialty">
-                  <option value="general">General Auto Parts</option>
-                  <option value="japanese">Japanese Brands (Toyota, Honda, Nissan)</option>
-                  <option value="german">German Brands (BMW, Mercedes, VW)</option>
-                  <option value="korean">Korean Brands (Hyundai, Kia)</option>
-                  <option value="accessories">Car Accessories &amp; Gadgets</option>
-                  <option value="mixed">Mixed / All Brands</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="onboard-shop-desc"><i class="fa-solid fa-align-left"></i> Brief Shop Description</label>
-                <textarea id="onboard-shop-desc" rows="3" placeholder="Tell buyers what you sell and what makes your shop unique..."></textarea>
-              </div>
-
-            </div>
-
-            <div class="onboarding-footer">
-              <button type="button" class="btn btn-secondary" onclick="app.goToOnboardingStep(1)">
-                <i class="fa-solid fa-arrow-left"></i> Back
-              </button>
-              <button type="submit" class="btn btn-accent" id="onboard-submit-btn">
-                <i class="fa-solid fa-check"></i> Complete Setup
-              </button>
-            </div>
-          </div>
-
-        </form>
       </div>
     </div>
 
@@ -2226,17 +2140,20 @@
         <div style="font-size: 3rem; color: var(--whatsapp-color); margin-bottom: 1rem;">
           <i class="fa-solid fa-circle-check"></i>
         </div>
-        <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--primary-color);">Merchant Onboarded!</h3>
-        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+        <h3 id="success-modal-title" style="font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--primary-color);">Merchant Onboarded!</h3>
+        <p id="success-modal-subtitle" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">
           Merchant shop has been successfully registered and verified on the platform.
         </p>
         
         <div style="background: var(--bg-light); border-radius: 6px; padding: 1rem; text-align: left; margin-bottom: 1.5rem; font-size: 0.85rem; border: 1px solid var(--border-color);">
           <div style="margin-bottom: 0.5rem;"><strong>Shop Name:</strong> <span id="success-shop-name"></span></div>
-          <div style="margin-bottom: 0.5rem;"><strong>Google Email:</strong> <span id="success-shop-email"></span></div>
+          <div style="margin-bottom: 0.5rem;"><strong>Login Email:</strong> <span id="success-shop-email"></span></div>
           <div style="margin-bottom: 0.5rem;"><strong>Contact Phone:</strong> <span id="success-shop-phone"></span></div>
           <div style="margin-bottom: 0.5rem;"><strong>Stall Location:</strong> <span id="success-shop-location"></span></div>
-          <div><strong>Generated Passcode:</strong> <span id="success-shop-passcode" style="font-family: monospace; font-weight: bold; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; color: #0369a1;"></span></div>
+          <div><strong>Temporary Password:</strong> <span id="success-shop-passcode" style="font-family: monospace; font-weight: bold; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; color: #0369a1; user-select: all;"></span></div>
+          <div style="margin-top: 0.75rem; font-size: 0.78rem; color: var(--text-muted);">
+            <i class="fa-solid fa-circle-info"></i> Copy this now — it won't be shown again. The merchant logs in with their email or phone and this password, then can change it under Shop Profile.
+          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 0.5rem;">

@@ -1,16 +1,23 @@
 import sql from "./db.js";
 import bcrypt from "bcryptjs";
+import { generateTempPassword } from "./utils.js";
 
 async function seed() {
   console.log("🌱 Seeding database...\n");
 
   try {
     // ── 1. Create Admin User ────────────────────────────────
-    const adminPasswordHash = await bcrypt.hash("G@laxy2012", 12);
+    // Credentials come from the environment so no password lives in the repository
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminEmail || !adminPassword || adminPassword.length < 10) {
+      throw new Error("Set ADMIN_EMAIL and ADMIN_PASSWORD (10+ characters) in server/.env before seeding.");
+    }
+    const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
     const [adminUser] = await sql`
       INSERT INTO users (email, phone, password_hash, full_name, role)
-      VALUES ('korantenghenry2012@gmail.com', '+233000000000', ${adminPasswordHash}, 'Administrator Kwame', 'admin')
+      VALUES (${adminEmail.toLowerCase()}, '+233000000000', ${adminPasswordHash}, 'Administrator Kwame', 'admin')
       ON CONFLICT (email) DO UPDATE SET password_hash = ${adminPasswordHash}
       RETURNING id
     `;
@@ -104,7 +111,10 @@ async function seed() {
       }
     ];
 
-    const merchantPasswordHash = await bcrypt.hash("merchant123", 12);
+    // Demo merchants get one random password, printed once; admins can reset it per merchant
+    const demoMerchantPassword = generateTempPassword();
+    console.log(`  🔑 Demo merchant password: ${demoMerchantPassword}`);
+    const merchantPasswordHash = await bcrypt.hash(demoMerchantPassword, 12);
     const merchantIdMap = {};
 
     for (const m of merchantsData) {
