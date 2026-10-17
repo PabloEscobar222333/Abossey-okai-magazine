@@ -1,6 +1,8 @@
 // ABBOSSEY OKAI MAGAZINE - E-Commerce Marketplace Client App logic
 import { auth } from "./firebase.js";
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, setPersistence, inMemoryPersistence } from "firebase/auth";
+import { createPinMap, movePin } from "./maps.js";
+import { compressImageFile } from "./image-compress.js";
 
 // Mock Database Taxonomy & Vehicle Configurations
 // Mock Database Taxonomy & Vehicle Configurations
@@ -2056,7 +2058,7 @@ class AbbosseyOkaiApp {
       // Check if image exists
       let imgTag = "";
       if (p.images && p.images.length > 0) {
-        imgTag = `<img src="${p.images[0]}" alt="${p.name}" loading="lazy">`;
+        imgTag = `<img src="${p.images[0]}" alt="${p.name}" loading="lazy" decoding="async">`;
       } else {
         imgTag = `
           <div class="card-image-fallback">
@@ -2188,6 +2190,7 @@ class AbbosseyOkaiApp {
     let shopName = (p.merchant && (p.merchant.shopName || p.merchant.shop_name)) || "Abossey Okai Merchant";
     let shopSince = (p.merchant && p.merchant.since) || "2024";
     let shopLoc = (p.merchant && p.merchant.location) || "Abossey Okai, Accra";
+    let shopCoords = (p.merchant && p.merchant.coordinates) || "5.5562, -0.2284";
     let shopVer = (p.merchant && p.merchant.verified) || false;
 
     // Check if live merchant profile exists with updated admin settings
@@ -2201,6 +2204,7 @@ class AbbosseyOkaiApp {
         shopName = liveMerchant.shopName || shopName;
         shopSince = liveMerchant.since || shopSince;
         shopLoc = liveMerchant.location || shopLoc;
+        shopCoords = liveMerchant.coordinates || shopCoords;
         shopVer = liveMerchant.verified ?? shopVer;
       }
     }
@@ -2233,6 +2237,8 @@ class AbbosseyOkaiApp {
       modal.style.display = "flex";
       document.body.style.overflow = "hidden"; // Disable body scrolls
     }
+
+    this.renderPdpShopMap(shopCoords, shopName);
   }
 
   closePdp() {
@@ -2285,7 +2291,7 @@ class AbbosseyOkaiApp {
       
       if (img.startsWith("mock_") || img.startsWith("data:")) {
         if (img.startsWith("data:")) {
-          thumb.innerHTML = `<img src="${img}" alt="Thumb">`;
+          thumb.innerHTML = `<img src="${img}" alt="Thumb" loading="lazy" decoding="async">`;
         } else {
           thumb.innerHTML = `
             <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#F1F5F9; font-size:0.8rem; font-weight:700; color:var(--text-muted);">
@@ -2294,7 +2300,7 @@ class AbbosseyOkaiApp {
           `;
         }
       } else {
-        thumb.innerHTML = `<img src="${img}" alt="Thumb">`;
+        thumb.innerHTML = `<img src="${img}" alt="Thumb" loading="lazy" decoding="async">`;
       }
 
       thumb.addEventListener("click", () => {
@@ -2389,26 +2395,58 @@ class AbbosseyOkaiApp {
     }
   }
 
+  async renderPdpShopMap(coords, shopName) {
+    const mapEl = document.getElementById("pdp-shop-map");
+    if (!mapEl) return;
+
+    const parts = String(coords).split(",").map(s => parseFloat(s.trim()));
+    const lat = isNaN(parts[0]) ? 5.5562 : parts[0];
+    const lng = isNaN(parts[1]) ? -0.2284 : parts[1];
+    // Used by "Locate Merchant Shop", and lets a slow first map load land on the product currently open
+    this.activePdpShopLocation = { lat, lng, shopName };
+
+    if (this._pdpShopMap) {
+      movePin(this._pdpShopMap, this._pdpShopMarker, lat, lng, 16);
+      this._pdpShopMarker.title = shopName;
+      return;
+    }
+    if (this._pdpShopMapLoading) return;
+    this._pdpShopMapLoading = true;
+
+    try {
+      const { map, marker } = await createPinMap(mapEl, lat, lng, {
+        zoom: 16,
+        color: "#002d62",
+        gestureHandling: "cooperative", // don't hijack scrolling inside the product sheet
+      });
+      this._pdpShopMap = map;
+      this._pdpShopMarker = marker;
+
+      const target = this.activePdpShopLocation;
+      movePin(map, marker, target.lat, target.lng, 16);
+      marker.title = target.shopName;
+    } catch (err) {
+      console.warn("Google Maps initialization warning:", err);
+      mapEl.style.display = "none";
+    } finally {
+      this._pdpShopMapLoading = false;
+    }
+  }
+
   locateMerchantShop() {
     const p = this.activePdpProduct;
     if (!p) return;
 
-    const coords = p.merchant.coordinates || "5.5562, -0.2284";
-    const shopName = p.merchant.shopName || "Abossey Okai Merchant";
-
-    const parts = coords.split(",").map(s => parseFloat(s.trim()));
-    const lat = parts[0] || 5.5562;
-    const lng = parts[1] || -0.2284;
+    // Same location the product-page map shows (live merchant profile first, then product snapshot)
+    const { lat, lng, shopName } = this.activePdpShopLocation;
 
     // Detect Apple / iOS devices
     const isAppleDevice = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && (navigator.maxTouchPoints > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent));
 
-    let navUrl = "";
-    if (isAppleDevice) {
-      navUrl = `https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(shopName)}`;
-    } else {
-      navUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shopName + ', ' + coords)}`;
-    }
+    // Open turn-by-turn directions from the customer's current location to the shop
+    const navUrl = isAppleDevice
+      ? this.getAppleDirectionsUrl(lat, lng)
+      : this.getGoogleDirectionsUrl(lat, lng);
 
     // Lead tracking
     if (p.id) {
@@ -3196,65 +3234,41 @@ class AbbosseyOkaiApp {
     setTimeout(() => this.initMerchantLocationMap(), 150);
   }
 
-  initMerchantLocationMap() {
+  async initMerchantLocationMap() {
     const mapEl = document.getElementById("merchant-interactive-map");
-    if (!mapEl || typeof L === "undefined") return;
+    if (!mapEl) return;
 
     const lat = this.activeMerchantLocation?.latitude || 5.5562;
     const lng = this.activeMerchantLocation?.longitude || -0.2284;
 
     try {
       if (this._merchantMap) {
-        this._merchantMap.invalidateSize();
-        if (this._merchantMarker) {
-          this._merchantMarker.setLatLng([lat, lng]);
-        }
-        this._merchantMap.setView([lat, lng], 16);
+        movePin(this._merchantMap, this._merchantMarker, lat, lng, 16);
         return;
       }
+      // Avoid creating two maps if the tab is opened again while Google Maps is still loading
+      if (this._merchantMapLoading) return;
+      this._merchantMapLoading = true;
 
-      const map = L.map("merchant-interactive-map", {
-        zoomControl: true,
-        attributionControl: false,
-      }).setView([lat, lng], 16);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-      }).addTo(map);
-
-      const pinIcon = L.divIcon({
-        className: "leaflet-custom-merchant-pin",
-        html: '<i class="fa-solid fa-location-dot" style="color:#002d62; font-size:2.4rem; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.35)); cursor:grab;"></i>',
-        iconSize: [32, 42],
-        iconAnchor: [16, 42],
-        popupAnchor: [0, -42]
+      const { map, marker } = await createPinMap(mapEl, lat, lng, {
+        zoom: 16,
+        color: "#002d62",
+        draggable: true,
+        onMove: (newLat, newLng) => this.updateMerchantMapLocation(newLat, newLng, "manual_pin"),
       });
-
-      const marker = L.marker([lat, lng], {
-        icon: pinIcon,
-        draggable: true
-      }).addTo(map);
 
       const shopName = this.merchantProfile?.shopName || this.merchantProfile?.shop_name || 'Shop Location';
-      marker.bindPopup(`<b>${shopName}</b><br>Drag pin to adjust exact stall location.`).openPopup();
-
-      marker.on("dragend", () => {
-        const pos = marker.getLatLng();
-        this.updateMerchantMapLocation(pos.lat, pos.lng, "manual_pin");
-      });
-
-      map.on("click", (e) => {
-        marker.setLatLng(e.latlng);
-        this.updateMerchantMapLocation(e.latlng.lat, e.latlng.lng, "manual_pin");
-      });
+      marker.title = `${shopName} — drag pin to adjust exact stall location`;
 
       this._merchantMap = map;
       this._merchantMarker = marker;
 
       this.setupMerchantMapSearch();
-      setTimeout(() => map.invalidateSize(), 300);
     } catch (err) {
-      console.warn("Leaflet map initialization warning:", err);
+      console.warn("Google Maps initialization warning:", err);
+      this.showToast("Could not load Google Maps. Please check your connection and try again.", "warning");
+    } finally {
+      this._merchantMapLoading = false;
     }
   }
 
@@ -3481,8 +3495,7 @@ class AbbosseyOkaiApp {
   jumpMerchantMapPreset(lat, lng, label, btnEl = null) {
     if (!this._merchantMap || !this._merchantMarker) return;
 
-    this._merchantMarker.setLatLng([lat, lng]);
-    this._merchantMap.setView([lat, lng], 17, { animate: true });
+    movePin(this._merchantMap, this._merchantMarker, lat, lng);
     this.updateMerchantMapLocation(lat, lng, "preset");
 
     // Highlight chip
@@ -3524,8 +3537,7 @@ class AbbosseyOkaiApp {
         const accuracy = Math.round(pos.coords.accuracy);
 
         if (this._merchantMap && this._merchantMarker) {
-          this._merchantMarker.setLatLng([lat, lng]);
-          this._merchantMap.setView([lat, lng], 17, { animate: true });
+          movePin(this._merchantMap, this._merchantMarker, lat, lng);
         }
 
         this.updateMerchantMapLocation(lat, lng, "gps", accuracy);
@@ -3568,12 +3580,17 @@ class AbbosseyOkaiApp {
     const appleBtn = document.getElementById("preview-apple-directions-btn");
     const shopName = this.merchantProfile?.shopName || "Abossey Okai Merchant";
 
-    if (googleBtn) {
-      googleBtn.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shopName + ', ' + lat.toFixed(6) + ',' + lng.toFixed(6))}`;
-    }
-    if (appleBtn) {
-      appleBtn.href = `https://maps.apple.com/?ll=${lat.toFixed(6)},${lng.toFixed(6)}&q=${encodeURIComponent(shopName)}`;
-    }
+    if (googleBtn) googleBtn.href = this.getGoogleDirectionsUrl(lat, lng);
+    if (appleBtn) appleBtn.href = this.getAppleDirectionsUrl(lat, lng);
+  }
+
+  // Directions links: no origin is given, so the maps app starts from the customer's current location
+  getGoogleDirectionsUrl(lat, lng) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lng.toFixed(6)}`;
+  }
+
+  getAppleDirectionsUrl(lat, lng) {
+    return `https://maps.apple.com/?daddr=${lat.toFixed(6)},${lng.toFixed(6)}`;
   }
 
   async saveMerchantLocation() {
@@ -3761,42 +3778,23 @@ class AbbosseyOkaiApp {
     }
   }
 
-  // ─── Interactive Map (Leaflet) ──────────────────────────
-  initOnboardMap() {
-    if (this._onboardMap) {
-      this._onboardMap.remove();
-      this._onboardMap = null;
-    }
-
+  // ─── Interactive Map (Google Maps) ──────────────────────────
+  async initOnboardMap() {
     const mapEl = document.getElementById('onboard-leaflet-map');
-    if (!mapEl || typeof L === 'undefined') return;
+    if (!mapEl) return;
 
     // Default: Abossey Okai, Accra
     const defaultLat = 5.5562;
     const defaultLng = -0.2284;
 
-    const map = L.map('onboard-leaflet-map', {
-      zoomControl: true,
-      attributionControl: false,
-    }).setView([defaultLat, defaultLng], 16);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-    }).addTo(map);
-
-    // Custom blue pin icon
-    const pinIcon = L.divIcon({
-      className: 'leaflet-custom-pin',
-      html: '<i class="fa-solid fa-location-dot" style="color:#2563eb;font-size:2.2rem;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.25));"></i>',
-      iconSize: [30, 40],
-      iconAnchor: [15, 40],
-      popupAnchor: [0, -42],
-    });
-
-    const marker = L.marker([defaultLat, defaultLng], {
-      icon: pinIcon,
-      draggable: true,
-    }).addTo(map);
+    // Reuse the existing Google map: reset the pin to the default position
+    if (this._onboardMap) {
+      movePin(this._onboardMap, this._onboardMarker, defaultLat, defaultLng, 16);
+      this._onboardSyncCoords(defaultLat, defaultLng);
+      return;
+    }
+    if (this._onboardMapLoading) return;
+    this._onboardMapLoading = true;
 
     // Sync coordinates whenever marker moves
     const syncCoords = (lat, lng) => {
@@ -3817,17 +3815,22 @@ class AbbosseyOkaiApp {
     // Initial sync
     syncCoords(defaultLat, defaultLng);
 
-    // Drag pin to set location
-    marker.on('dragend', () => {
-      const pos = marker.getLatLng();
-      syncCoords(pos.lat, pos.lng);
-    });
-
-    // Click map to move pin
-    map.on('click', (e) => {
-      marker.setLatLng(e.latlng);
-      syncCoords(e.latlng.lat, e.latlng.lng);
-    });
+    // Drag pin or click map to set location
+    let map, marker;
+    try {
+      ({ map, marker } = await createPinMap(mapEl, defaultLat, defaultLng, {
+        zoom: 16,
+        color: '#2563eb',
+        draggable: true,
+        onMove: syncCoords,
+      }));
+    } catch (err) {
+      console.warn('Google Maps initialization warning:', err);
+      this.showToast('Could not load Google Maps. You can still type coordinates manually.', 'warning');
+      return;
+    } finally {
+      this._onboardMapLoading = false;
+    }
 
     // Store references
     this._onboardMap = map;
@@ -3853,8 +3856,7 @@ class AbbosseyOkaiApp {
         const lat = parseFloat(chip.dataset.lat);
         const lng = parseFloat(chip.dataset.lng);
         if (!isNaN(lat) && !isNaN(lng) && this._onboardMap && this._onboardMarker) {
-          this._onboardMarker.setLatLng([lat, lng]);
-          this._onboardMap.setView([lat, lng], 17, { animate: true });
+          movePin(this._onboardMap, this._onboardMarker, lat, lng);
           this._onboardSyncCoords(lat, lng);
           searchInput.value = chip.textContent.trim();
           clearBtn.style.display = 'flex';
@@ -3893,8 +3895,7 @@ class AbbosseyOkaiApp {
           const item = resultsContainer.querySelector('.map-search-result-item');
           if (item) {
             item.addEventListener('click', () => {
-              this._onboardMarker.setLatLng([lat, lng]);
-              this._onboardMap.setView([lat, lng], 17, { animate: true });
+              movePin(this._onboardMap, this._onboardMarker, lat, lng);
               this._onboardSyncCoords(lat, lng);
               resultsContainer.style.display = 'none';
             });
@@ -3992,8 +3993,7 @@ class AbbosseyOkaiApp {
               const lat = parseFloat(item.dataset.lat);
               const lng = parseFloat(item.dataset.lng);
               if (this._onboardMarker && this._onboardMap) {
-                this._onboardMarker.setLatLng([lat, lng]);
-                this._onboardMap.setView([lat, lng], 17, { animate: true });
+                movePin(this._onboardMap, this._onboardMarker, lat, lng);
                 this._onboardSyncCoords(lat, lng);
                 resultsContainer.style.display = 'none';
                 searchInput.value = item.querySelector('.result-name').textContent;
@@ -4049,8 +4049,7 @@ class AbbosseyOkaiApp {
           btn.classList.remove('locating');
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          this._onboardMarker.setLatLng([lat, lng]);
-          this._onboardMap.setView([lat, lng], 17, { animate: true });
+          movePin(this._onboardMap, this._onboardMarker, lat, lng);
           this._onboardSyncCoords(lat, lng);
           this.showToast('Location set from GPS!', 'success');
         },
@@ -4123,14 +4122,13 @@ class AbbosseyOkaiApp {
     const file = event.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      this.merchantProfile.avatar = e.target.result;
+    // Shop logos display small, so 400px is plenty
+    compressImageFile(file, 400, 0.85).then(dataUrl => {
+      this.merchantProfile.avatar = dataUrl;
       this.saveMerchantProfileToStorage();
       this.renderMerchantProfile();
       this.showToast("Shop logo updated successfully!", "success");
-    };
-    reader.readAsDataURL(file);
+    });
   }
 
   saveMerchantProfile(event) {
@@ -4286,7 +4284,7 @@ class AbbosseyOkaiApp {
 
     let imgTag = "";
     if (p.images && p.images.length > 0) {
-      imgTag = `<img src="${p.images[0]}" class="table-product-img" alt="${p.name}">`;
+      imgTag = `<img src="${p.images[0]}" class="table-product-img" loading="lazy" decoding="async" alt="${p.name}">`;
     } else {
       imgTag = `<div class="table-product-img" style="background:#F1F5F9; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">${p.mainType === 'parts' ? '⚙️' : '🔌'}</div>`;
     }
@@ -4688,14 +4686,13 @@ class AbbosseyOkaiApp {
       this.showToast("You can upload a maximum of 5 images per product.", "error");
     }
 
-    filesToUpload.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target.result;
-        this.selectedFormImages.push(dataUrl);
-        this.renderFormImagePreviews();
-      };
-      reader.readAsDataURL(file);
+    // Shrink photos before they're stored, keeping the order the merchant picked them in
+    Promise.all(filesToUpload.map(file => compressImageFile(file, 1200, 0.8))).then(dataUrls => {
+      dataUrls.forEach(dataUrl => {
+        // Re-check the limit: another batch may have been added while these were compressing
+        if (this.selectedFormImages.length < 5) this.selectedFormImages.push(dataUrl);
+      });
+      this.renderFormImagePreviews();
     });
   }
 
@@ -5433,7 +5430,7 @@ class AbbosseyOkaiApp {
       this.renderAdminOverview();
     } else if (tab === "merchants") {
       this.renderAdminMerchants();
-      // Initialize Leaflet map after panel is visible
+      // Initialize Google map after panel is visible
       setTimeout(() => this.initOnboardMap(), 150);
     } else if (tab === "listings") {
       this.renderAdminListings();
@@ -5848,7 +5845,7 @@ class AbbosseyOkaiApp {
 
       let imgTag = "";
       if (p.images && p.images.length > 0) {
-        imgTag = `<img src="${p.images[0]}" class="table-product-img" style="width:36px; height:36px; border-radius:4px; object-fit:cover; margin-right:8px;" alt="${p.name}">`;
+        imgTag = `<img src="${p.images[0]}" class="table-product-img" loading="lazy" decoding="async" style="width:36px; height:36px; border-radius:4px; object-fit:cover; margin-right:8px;" alt="${p.name}">`;
       } else {
         imgTag = `<div class="table-product-img" style="width:36px; height:36px; border-radius:4px; background:#F1F5F9; display:flex; align-items:center; justify-content:center; font-size:1.1rem; margin-right:8px;">${p.mainType === 'parts' ? '⚙️' : '🔌'}</div>`;
       }
@@ -6455,7 +6452,7 @@ class AbbosseyOkaiApp {
       // Find logo file name
       const brandInfo = this.allBrandsData.find(b => b.name.toLowerCase() === brandName.toLowerCase()) || { logo: "default-logo.png" };
       
-      if (modalLogo) modalLogo.src = `/assets/images/brands/all/${brandInfo.logo}?v=3`;
+      if (modalLogo) modalLogo.src = this.brandLogoUrl(brandInfo.logo);
       if (modalName) modalName.textContent = brandName;
       if (searchApplyBtn) {
         searchApplyBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Find Parts for ${brandName}`;
@@ -6747,6 +6744,11 @@ class AbbosseyOkaiApp {
   }
 
   // Render the Brand Directory Cards dynamically
+  // Brand logos are stored as e.g. "toyota.png"; the site serves optimized WebP versions (see scripts/optimize-images.js)
+  brandLogoUrl(logo) {
+    return `/assets/images/brands/${String(logo || "").replace(/\.(png|jpe?g|webp)$/i, "")}.webp`;
+  }
+
   renderBrandsView() {
     this.brandSearchQuery = this.brandSearchQuery || "";
     this.activeBrandTab = this.activeBrandTab || "all";
@@ -6774,7 +6776,7 @@ class AbbosseyOkaiApp {
     container.innerHTML = filtered.map(brand => `
       <div class="brand-card-item" onclick="app.selectBrandAndRedirect('${brand.name}')">
         <div class="brand-card-logo-box">
-          <img src="/assets/images/brands/all/${brand.logo}?v=3" alt="${brand.name}" class="brand-card-logo-img">
+          <img src="${this.brandLogoUrl(brand.logo)}" alt="${brand.name}" class="brand-card-logo-img" loading="lazy" decoding="async">
         </div>
         <div class="brand-card-name">${brand.name}</div>
       </div>

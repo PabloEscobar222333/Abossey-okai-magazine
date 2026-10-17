@@ -14,3 +14,6 @@ server/service-account.json
 # System files
 .DS_Store
 *.log
+
+# Vite build output (Vercel builds it on deploy)
+dist/

@@ -8,9 +8,11 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server/index.js"
+    "server": "node server/index.js",
+    "images": "node scripts/optimize-images.js"
   },
   "devDependencies": {
+    "sharp": "^0.33.5",
     "vite": "^5.2.0"
   },
   "dependencies": {
@@ -24,4 +26,3 @@
     "jsonwebtoken": "^9.0.2"
   }
 }
-
