@@ -1,6 +1,14 @@
 import { Router } from "express";
 import sql from "../db.js";
-import { requireAuth, requireMerchant, requireAdmin } from "../middleware/auth.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { normalizePhone, PRODUCT_COLUMNS_SQL, PRODUCT_IMAGES_SQL, MERCHANT_AVATAR_SQL, sendDataUrl } from "../utils.js";
+
+// Merchant columns for public responses (avatar served by URL instead of inline base64)
+const MERCHANT_COLUMNS_SQL = `
+  m.id, m.user_id, m.shop_name, m.phone, m.email, m.location, m.coordinates,
+  m.latitude, m.longitude, m.location_data, m.description, m.specialty,
+  m.verified, m.verification_notes, m.status, m.since, m.created_at, m.updated_at,
+  ${MERCHANT_AVATAR_SQL}`;
 
 const router = Router();
 
@@ -8,12 +16,12 @@ const router = Router();
 // List all merchants (public)
 router.get("/", async (req, res) => {
   try {
-    const merchants = await sql`
-      SELECT m.*, u.full_name as owner_name
+    const merchants = await sql(`
+      SELECT ${MERCHANT_COLUMNS_SQL}, u.full_name as owner_name
       FROM merchants m
       LEFT JOIN users u ON m.user_id = u.id
       ORDER BY m.created_at DESC
-    `;
+    `);
     res.json({ merchants });
   } catch (err) {
     console.error("List merchants error:", err);
@@ -21,36 +29,56 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ─── GET /api/merchants/:id/avatar ──────────────────────
+// Serve the shop logo as a binary image
+router.get("/:id/avatar", async (req, res) => {
+  try {
+    const merchantId = parseInt(req.params.id);
+    if (isNaN(merchantId)) return res.status(404).end();
+
+    const rows = await sql`SELECT avatar_url FROM merchants WHERE id = ${merchantId}`;
+    const avatar = rows[0]?.avatar_url;
+    if (!avatar) return res.status(404).end();
+
+    if (!sendDataUrl(res, avatar)) res.redirect(avatar);
+  } catch (err) {
+    console.error("Get merchant avatar error:", err);
+    res.status(500).end();
+  }
+});
+
 // ─── GET /api/merchants/:id ─────────────────────────────
 // Get single merchant profile (public)
 router.get("/:id", async (req, res) => {
   try {
-    const merchants = await sql`
-      SELECT m.*, u.full_name as owner_name
+    const merchantId = parseInt(req.params.id);
+    if (isNaN(merchantId)) {
+      return res.status(404).json({ error: "Merchant not found" });
+    }
+
+    const merchants = await sql(`
+      SELECT ${MERCHANT_COLUMNS_SQL}, u.full_name as owner_name
       FROM merchants m
       LEFT JOIN users u ON m.user_id = u.id
-      WHERE m.id = ${req.params.id}
-    `;
+      WHERE m.id = $1
+    `, [merchantId]);
 
     if (merchants.length === 0) {
       return res.status(404).json({ error: "Merchant not found" });
     }
 
-    // Also fetch their products
-    const products = await sql`
-      SELECT p.*, 
+    // Also fetch their public products
+    const products = await sql(`
+      SELECT ${PRODUCT_COLUMNS_SQL}, ${PRODUCT_IMAGES_SQL},
         COALESCE(
-          json_agg(
-            json_build_object('make', pc.make, 'model', pc.model, 'years', pc.years)
-          ) FILTER (WHERE pc.id IS NOT NULL),
+          (SELECT json_agg(json_build_object('make', pc.make, 'model', pc.model, 'years', pc.years))
+           FROM product_compatibility pc WHERE pc.product_id = p.id),
           '[]'
         ) as compatibility
       FROM products p
-      LEFT JOIN product_compatibility pc ON p.id = pc.product_id
-      WHERE p.merchant_id = ${req.params.id}
-      GROUP BY p.id
+      WHERE p.merchant_id = $1 AND p.status = 'Live'
       ORDER BY p.created_at DESC
-    `;
+    `, [merchantId]);
 
     res.json({ merchant: merchants[0], products });
   } catch (err) {
@@ -89,6 +117,10 @@ router.put("/:id", requireAuth, async (req, res) => {
       description, specialty, avatar_url, latitude, longitude, location_data
     } = req.body;
 
+    // Only accept a newly uploaded image; the URL we serve back (/api/merchants/:id/avatar) means "unchanged"
+    const newAvatar = typeof avatar_url === "string" && avatar_url.startsWith("data:image/") ? avatar_url : null;
+    const normalizedPhone = normalizePhone(phone);
+
     let parsedLat = latitude !== undefined ? parseFloat(latitude) : null;
     let parsedLng = longitude !== undefined ? parseFloat(longitude) : null;
 
@@ -103,7 +135,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const [updated] = await sql`
       UPDATE merchants SET
         shop_name = COALESCE(${shop_name || null}, shop_name),
-        phone = COALESCE(${phone || null}, phone),
+        phone = COALESCE(${normalizedPhone}, phone),
         email = COALESCE(${email || null}, email),
         location = COALESCE(${location || null}, location),
         coordinates = COALESCE(${coordinates || null}, coordinates),
@@ -112,7 +144,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         location_data = COALESCE(${location_data ? JSON.stringify(location_data) : null}::jsonb, location_data),
         description = COALESCE(${description || null}, description),
         specialty = COALESCE(${specialty || null}, specialty),
-        avatar_url = COALESCE(${avatar_url || null}, avatar_url),
+        avatar_url = COALESCE(${newAvatar}, avatar_url),
         updated_at = NOW()
       WHERE id = ${merchantId}
       RETURNING *

@@ -169,6 +169,46 @@ const API_BASE = (() => {
   return "";
 })();
 
+// Image URLs served by the API ("/api/...") need the API host when running on the Vite dev server
+function resolveApiUrl(url) {
+  return typeof url === "string" && url.startsWith("/api/") ? API_BASE + url : url;
+}
+
+// Escape user-supplied text before inserting it into innerHTML
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Safe string argument for an inline onclick="app.fn(...)" handler (survives quotes in names)
+function jsArg(value) {
+  return escapeHtml(JSON.stringify(String(value ?? "")));
+}
+
+// Fetch wrapper for the backend API: adds the JWT and JSON body, never throws
+async function apiRequest(path, { method = "GET", body } = {}) {
+  const token = localStorage.getItem("ao_jwt_token");
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    return { ok: res.ok, status: res.status, data, error: data.error || (res.ok ? null : `Request failed (${res.status})`) };
+  } catch (err) {
+    return { ok: false, status: 0, data: {}, error: "Could not reach the server. Check your connection and try again." };
+  }
+}
+
 class AbbosseyOkaiApp {
   constructor() {
     this.searchMode = "parts"; // 'parts' or 'accessories'
@@ -686,14 +726,16 @@ class AbbosseyOkaiApp {
       stock: p.stock || "In Stock",
       status: p.status || "Live",
       views: p.views || 0,
-      images: p.images || [],
+      images: (p.images || []).map(resolveApiUrl),
       compatibility: comp,
+      merchantId: p.merchant_id ?? p.merchantId ?? null,
       merchant: p.merchant || {
         shopName: p.merchant_shop_name || "Abossey Okai Merchant",
         phone: p.merchant_phone || "+233240000000",
         location: p.merchant_location || "Abossey Okai, Accra",
         coordinates: p.merchant_coordinates || "5.5565, -0.2282",
         verified: p.merchant_verified ?? true,
+        status: p.merchant_status || "Active",
         since: p.merchant_since || "Jan 2022"
       },
       description: p.description || ""
@@ -715,7 +757,7 @@ class AbbosseyOkaiApp {
       coordinates: mp.coordinates || "5.5565, -0.2282",
       description: mp.description || "",
       specialty: mp.specialty || "japanese",
-      avatar: mp.avatar_url || mp.avatar || null,
+      avatar: resolveApiUrl(mp.avatar_url || mp.avatar || null),
       verified: mp.verified ?? false,
       verificationNotes: mp.verification_notes || mp.verificationNotes || "",
       status: mp.status || "Active",
@@ -731,44 +773,51 @@ class AbbosseyOkaiApp {
       localStorage.removeItem("ao_marketplace_merchants");
     } catch (e) {}
 
-    try {
-      // 1. Fetch live products from Neon backend API
-      const statusParam = (this.isAdminLoggedIn || this.isMerchantLoggedIn) ? "?status=all&limit=200" : "?status=Live&limit=100";
-      const resProducts = await fetch(`${API_BASE}/api/products${statusParam}`);
-      if (resProducts.ok) {
-        const data = await resProducts.json();
-        if (Array.isArray(data.products)) {
-          this.products = data.products.map(p => this.normalizeProduct(p));
-        }
+    // Only the most recent load may update state (e.g. logout then quick login)
+    const loadSeq = this._loadSeq = (this._loadSeq || 0) + 1;
+    const isStale = () => loadSeq !== this._loadSeq;
+
+    // 0. Shared catalog settings (taxonomy, categories, announcement) saved by the admin
+    const settingsRes = await apiRequest("/api/settings");
+    if (settingsRes.ok) this.applyPublicSettings(settingsRes.data.settings || {});
+    if (this.isAdminLoggedIn) {
+      const adminSettingsRes = await apiRequest("/api/admin/settings");
+      if (adminSettingsRes.ok) {
+        this.premoderation = !!adminSettingsRes.data.settings?.premoderation?.enabled;
       }
-    } catch (e) {
-      console.warn("Could not load products from backend API:", e);
     }
 
-    try {
-      // 2. Fetch live merchants from Neon backend API
-      const resMerchants = await fetch(`${API_BASE}/api/merchants`);
-      if (resMerchants.ok) {
-        const data = await resMerchants.json();
-        if (Array.isArray(data.merchants) && data.merchants.length > 0) {
-          this.merchants = data.merchants.map(m => ({
-            id: m.id,
-            shopName: m.shop_name,
-            phone: m.phone,
-            email: m.email,
-            location: m.location,
-            coordinates: m.coordinates || "5.5565, -0.2282",
-            description: m.description,
-            specialty: m.specialty || "japanese",
-            verified: m.verified,
-            verificationNotes: m.verification_notes || "",
-            status: m.status,
-            since: m.since || "Jan 2022"
-          }));
-        }
-      }
-    } catch (e) {
-      console.warn("Could not load merchants from backend API:", e);
+    // 1. Products — signed-in admins/merchants also get the listings only they may see
+    const statusParam = (this.isAdminLoggedIn || this.isMerchantLoggedIn) ? "?status=all&limit=200" : "?status=Live&limit=100";
+    const productsRes = await apiRequest(`/api/products${statusParam}`);
+    if (isStale()) return;
+    if (productsRes.ok && Array.isArray(productsRes.data.products)) {
+      this.products = productsRes.data.products.map(p => this.normalizeProduct(p));
+    } else if (!productsRes.ok) {
+      console.warn("Could not load products from backend API:", productsRes.error);
+    }
+
+    // 2. Merchants
+    const merchantsRes = await apiRequest("/api/merchants");
+    if (isStale()) return;
+    if (merchantsRes.ok && Array.isArray(merchantsRes.data.merchants)) {
+      this.merchants = merchantsRes.data.merchants.map(m => ({
+        id: m.id,
+        shopName: m.shop_name,
+        phone: m.phone,
+        email: m.email,
+        location: m.location,
+        coordinates: m.coordinates || "5.5565, -0.2282",
+        description: m.description,
+        specialty: m.specialty || "japanese",
+        avatar: resolveApiUrl(m.avatar_url || null),
+        verified: m.verified,
+        verificationNotes: m.verification_notes || "",
+        status: m.status,
+        since: m.since || "Jan 2022"
+      }));
+    } else if (!merchantsRes.ok) {
+      console.warn("Could not load merchants from backend API:", merchantsRes.error);
     }
 
     try {
@@ -800,6 +849,37 @@ class AbbosseyOkaiApp {
       this.renderAdminListings();
       this.renderAdminOverview();
     }
+  }
+
+  // Apply admin-managed settings from the backend so every visitor sees the same catalog
+  applyPublicSettings(settings) {
+    if (settings.vehicle_taxonomy && typeof settings.vehicle_taxonomy === "object") {
+      Object.keys(VEHICLE_TAXONOMY).forEach(make => delete VEHICLE_TAXONOMY[make]);
+      Object.assign(VEHICLE_TAXONOMY, settings.vehicle_taxonomy);
+    }
+    if (Array.isArray(settings.part_categories)) {
+      SPARE_PART_CATEGORIES.splice(0, SPARE_PART_CATEGORIES.length, ...settings.part_categories);
+    }
+    if (Array.isArray(settings.accessory_categories)) {
+      CAR_ACCESSORY_CATEGORIES.splice(0, CAR_ACCESSORY_CATEGORIES.length, ...settings.accessory_categories);
+    }
+    if (Array.isArray(settings.form_brands)) {
+      this.brands = settings.form_brands;
+    }
+    if (settings.announcement && typeof settings.announcement === "object") {
+      this.announcement = { ...this.announcement, ...settings.announcement };
+      this.renderAnnouncementBanner();
+    }
+  }
+
+  // Persist an admin setting to the backend; returns true on success
+  async saveSetting(key, value) {
+    const res = await apiRequest("/api/admin/settings", { method: "PUT", body: { key, value } });
+    if (!res.ok) {
+      this.showToast(`Could not save: ${res.error}`, "error");
+      return false;
+    }
+    return true;
   }
 
   // Load persisted session state
@@ -839,7 +919,14 @@ class AbbosseyOkaiApp {
       fetch(`${API_BASE}/api/auth/me`, {
         headers: { "Authorization": `Bearer ${jwtToken}` }
       })
-      .then(res => res.ok ? res.json() : null)
+      .then(res => {
+        // Expired or invalid token: drop the stale session instead of showing a dashboard that can't save
+        if (res.status === 401 || res.status === 404) {
+          this.logoutMerchant(true);
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then(data => {
         if (data && data.user) {
           if (data.user.role === "admin") {
@@ -863,6 +950,11 @@ class AbbosseyOkaiApp {
         }
       })
       .catch(() => {/* Offline fallback */});
+    } else if (savedAdminAuth === "true" || savedAuth === "true") {
+      // Dashboard flag without a token can't talk to the API — reset to guest
+      this.isAdminLoggedIn = false;
+      this.isMerchantLoggedIn = false;
+      this.merchantProfile = null;
     }
 
     const savedPremod = localStorage.getItem("ao_admin_premoderation");
@@ -1298,7 +1390,7 @@ class AbbosseyOkaiApp {
 
     // Filter matching parts/accessories names or compatibility matching with similarity matcher
     const matches = this.products.filter(p => {
-      return p.status === "Live" && this.matchesSearchQuery(p, this.searchQuery);
+      return p.status === "Live" && p.merchant.status !== "Suspended" && this.matchesSearchQuery(p, this.searchQuery);
     }).slice(0, 6);
 
     if (matches.length === 0) {
@@ -1311,7 +1403,7 @@ class AbbosseyOkaiApp {
       const item = document.createElement("div");
       item.className = "autocomplete-item";
       item.innerHTML = `
-        <span class="autocomplete-item-text">${p.name} <small style="color:var(--text-muted);">(${p.brand})</small></span>
+        <span class="autocomplete-item-text">${escapeHtml(p.name)} <small style="color:var(--text-muted);">(${escapeHtml(p.brand)})</small></span>
         <span class="autocomplete-item-sub">${p.mainType === "parts" ? "Spare Part" : "Accessory"}</span>
       `;
       item.addEventListener("click", () => {
@@ -1896,7 +1988,7 @@ class AbbosseyOkaiApp {
     // Filter database
     let filtered = this.products.filter(p => {
       // Must be live listing to display on public storefront
-      if (p.status !== "Live") return false;
+      if (p.status !== "Live" || p.merchant.status === "Suspended") return false;
 
       // Filter by Spare parts / accessories view
       if (this.activeMainType === "parts" && p.mainType !== "parts") return false;
@@ -2058,12 +2150,12 @@ class AbbosseyOkaiApp {
       // Check if image exists
       let imgTag = "";
       if (p.images && p.images.length > 0) {
-        imgTag = `<img src="${p.images[0]}" alt="${p.name}" loading="lazy" decoding="async">`;
+        imgTag = `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async">`;
       } else {
         imgTag = `
           <div class="card-image-fallback">
             <span class="card-fallback-icon">${p.mainType === 'parts' ? '⚙️' : '🔌'}</span>
-            <span style="font-size:0.75rem; font-weight:600; text-transform:uppercase;">${p.brand}</span>
+            <span style="font-size:0.75rem; font-weight:600; text-transform:uppercase;">${escapeHtml(p.brand)}</span>
           </div>
         `;
       }
@@ -2078,7 +2170,7 @@ class AbbosseyOkaiApp {
         </div>
         <div class="product-card-body">
           <span class="product-card-category">${p.category}</span>
-          <h4 class="product-card-name" title="${p.name}">${p.name}</h4>
+          <h4 class="product-card-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</h4>
           <span class="product-card-compatibility" title="${compatibilityLabel}">
             <i class="fa-solid fa-car"></i> ${compatibilityLabel}
           </span>
@@ -2268,18 +2360,18 @@ class AbbosseyOkaiApp {
     const activeImageSrc = images[this.activePdpImageIndex];
     if (activeImageSrc.startsWith("mock_") || activeImageSrc.startsWith("data:")) {
       if (activeImageSrc.startsWith("data:")) {
-        mainContainer.innerHTML = `<img src="${activeImageSrc}" alt="${p.name}">`;
+        mainContainer.innerHTML = `<img src="${escapeHtml(activeImageSrc)}" alt="${escapeHtml(p.name)}">`;
       } else {
         mainContainer.innerHTML = `
           <div class="card-image-fallback" style="height: 100%;">
             <span class="card-fallback-icon" style="font-size:4.5rem;">${p.mainType === 'parts' ? '⚙️' : '🔌'}</span>
             <span style="font-size:0.95rem; font-weight:700; text-transform:uppercase; color:var(--text-muted);">${activeImageSrc.replace("mock_", "").replace("_", " ")} view</span>
-            <span style="font-size:0.85rem; font-weight:600; color:var(--primary-color);">${p.brand} OEM Part</span>
+            <span style="font-size:0.85rem; font-weight:600; color:var(--primary-color);">${escapeHtml(p.brand)} OEM Part</span>
           </div>
         `;
       }
     } else {
-      mainContainer.innerHTML = `<img src="${activeImageSrc}" alt="${p.name}">`;
+      mainContainer.innerHTML = `<img src="${escapeHtml(activeImageSrc)}" alt="${escapeHtml(p.name)}">`;
     }
 
     // Thumbnails rendering
@@ -2463,25 +2555,23 @@ class AbbosseyOkaiApp {
     window.open(navUrl, "_blank");
   }
 
-  reportListing() {
-    if (!this.activePdpProduct) return;
-    
-    const savedReports = localStorage.getItem("ao_reported_listings");
-    const reports = savedReports ? JSON.parse(savedReports) : [];
-    
-    const newReport = {
-      id: "rep-" + Date.now(),
-      productId: this.activePdpProduct.id,
-      productName: this.activePdpProduct.name,
-      shopName: this.activePdpProduct.merchant.shopName,
-      reason: "Reported by customer for verification",
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    };
-    
-    reports.push(newReport);
-    localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
-    
-    this.showToast("Listing reported! Our administrators will verify this dealer's product shortly.", "success");
+  async reportListing() {
+    const product = this.activePdpProduct;
+    if (!product) return;
+
+    const reason = prompt(`What's wrong with "${product.name}"?`, "Suspected fake or misleading listing");
+    if (reason === null) return;
+
+    const res = await apiRequest(`/api/products/${product.id}/report`, {
+      method: "POST",
+      body: { reason: reason.trim() || "Reported by customer for verification" }
+    });
+    if (!res.ok) {
+      this.showToast(`Could not send report: ${res.error}`, "error");
+      return;
+    }
+
+    this.showToast("Listing reported! Our administrators will review it shortly.", "success");
     this.closePdp();
   }
 
@@ -2554,21 +2644,12 @@ class AbbosseyOkaiApp {
 
   closeMerchantAuth() {
     document.getElementById("auth-modal").style.display = "none";
-    
-    // Reset inputs
-    document.getElementById("auth-phone-input").value = "";
-    const smsInput = document.getElementById("auth-sms-input");
-    if (smsInput) smsInput.value = "";
-    const smsGroup = document.getElementById("auth-sms-code-group");
-    if (smsGroup) smsGroup.style.display = "none";
-    const submitBtn = document.getElementById("auth-submit-btn");
-    if (submitBtn) submitBtn.textContent = "Send Verification Code";
 
-    // Clear Google sign-in forms
-    const googleEmailInput = document.getElementById("auth-google-email-input");
-    if (googleEmailInput) googleEmailInput.value = "";
-    const adminPassInput = document.getElementById("auth-admin-password-input");
-    if (adminPassInput) adminPassInput.value = "";
+    // Reset inputs
+    ["auth-google-email-input", "auth-email-password-input", "auth-phone-input", "auth-phone-password-input"].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.value = "";
+    });
 
     this.showAuthView("initial");
   }
@@ -2581,16 +2662,47 @@ class AbbosseyOkaiApp {
   }
 
   showAuthView(viewName) {
-    if (viewName === "google-email") {
-      viewName = "initial";
-    }
     const initial = document.getElementById("auth-view-initial");
-    const emailView = document.getElementById("auth-view-google-email");
-    const passwordView = document.getElementById("auth-view-admin-password");
-    
-    if (initial) initial.style.display = viewName === "initial" ? "block" : "none";
-    if (emailView) emailView.style.display = "none";
-    if (passwordView) passwordView.style.display = viewName === "admin-password" ? "block" : "none";
+    if (initial) initial.style.display = "block";
+  }
+
+  // Route a successful login response (Google, email or phone) to the right dashboard
+  async applyLoginResult(data) {
+    localStorage.setItem("ao_jwt_token", data.token);
+    localStorage.setItem("ao_user_email", data.user.email || data.user.phone || "");
+
+    if (data.user.role === "admin") {
+      this.isAdminLoggedIn = true;
+      this.isMerchantLoggedIn = false;
+      this.isCustomerLoggedIn = false;
+      this.merchantProfile = null;
+      this.saveMerchantProfileToStorage();
+      this.closeMerchantAuth();
+      this.switchAppView("admin-dashboard");
+      await this.loadBackendData();
+      this.showToast(`Welcome, ${data.user.full_name || "Admin"}!`, "success");
+    } else if (data.user.role === "merchant" && data.merchantProfile) {
+      this.isMerchantLoggedIn = true;
+      this.isAdminLoggedIn = false;
+      this.isCustomerLoggedIn = false;
+      this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
+      this.saveMerchantProfileToStorage();
+      this.closeMerchantAuth();
+      this.switchAppView("dashboard");
+      await this.loadBackendData();
+      this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
+    } else {
+      this.isCustomerLoggedIn = true;
+      this.isMerchantLoggedIn = false;
+      this.isAdminLoggedIn = false;
+      this.merchantProfile = null;
+      this.saveMerchantProfileToStorage();
+      this.closeMerchantAuth();
+      this.switchAppView("storefront");
+      this.showToast(`Welcome, ${data.user.full_name || data.user.email || "there"}! Enjoy browsing.`, "success");
+    }
+
+    this.updatePortalButtonState();
   }
 
   async handleGoogleSSOClick() {
@@ -2614,487 +2726,99 @@ class AbbosseyOkaiApp {
         }
       }
 
-      const firebaseUser = result.user;
-
       // Get the Firebase ID token to send to our backend
-      const idToken = await firebaseUser.getIdToken();
+      const idToken = await result.user.getIdToken();
 
       this.showToast("Verifying Google account...", "info");
 
-      const res = await fetch(`${API_BASE}/api/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential: idToken }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        this.showToast(data.error || "Google authentication failed", "error");
+      const res = await apiRequest("/api/auth/google", { method: "POST", body: { credential: idToken } });
+      if (!res.ok || !res.data.token) {
+        this.showToast(res.error || "Google authentication failed", "error");
         return;
       }
 
-      if (data.token) {
-        localStorage.setItem("ao_jwt_token", data.token);
-
-        if (data.user.role === "admin") {
-          this.isAdminLoggedIn = true;
-          this.isMerchantLoggedIn = false;
-          this.isCustomerLoggedIn = false;
-          this.saveMerchantProfileToStorage();
-          this.closeMerchantAuth();
-          this.switchAppView("admin-dashboard");
-          await this.loadBackendData();
-          this.showToast(`Welcome, Admin ${data.user.full_name || data.user.email}!`, "success");
-
-        } else if (data.user.role === "merchant" && data.merchantProfile) {
-          this.isMerchantLoggedIn = true;
-          this.isAdminLoggedIn = false;
-          this.isCustomerLoggedIn = false;
-          this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
-          this.saveMerchantProfileToStorage();
-          this.closeMerchantAuth();
-          this.switchAppView("dashboard");
-          await this.loadBackendData();
-          this.showToast(`Welcome back, ${data.merchantProfile.shop_name || "Merchant"}!`, "success");
-
-        } else {
-          // Regular customer
-          this.isCustomerLoggedIn = true;
-          this.isMerchantLoggedIn = false;
-          this.isAdminLoggedIn = false;
-          this.saveMerchantProfileToStorage();
-          this.closeMerchantAuth();
-          this.switchAppView("storefront");
-          this.showToast(`Welcome, ${data.user.full_name || data.user.email}! Enjoy browsing.`, "success");
-        }
-
-        this.updatePortalButtonState();
-      }
+      await this.applyLoginResult(res.data);
     } catch (err) {
       if (err.code === "auth/popup-closed-by-user") {
         console.log("Google sign-in popup closed by user");
         return;
       }
       console.error("Google auth error:", err);
-      const errMsg = err.message || err.code || "Popup restricted";
-      this.showToast(`Google Sign-In Notice: ${errMsg}`, "warning");
+      this.showToast(`Google Sign-In failed: ${err.message || err.code || "popup blocked"}. You can also log in with email or phone.`, "warning");
       const emailInput = document.getElementById("auth-google-email-input");
       if (emailInput) emailInput.focus();
     }
   }
 
-  handleGoogleEmailSubmit(event) {
+  // Email + password login (admins, merchants, and customers with a password)
+  async handleGoogleEmailSubmit(event) {
     event.preventDefault();
     const email = document.getElementById("auth-google-email-input").value.trim().toLowerCase();
-    
-    if (email === "korantenghenry2012@gmail.com") {
-      this.showAuthView("admin-password");
-      const passInput = document.getElementById("auth-admin-password-input");
-      if (passInput) passInput.focus();
-    } else {
-      this.showToast("Authenticating with database...", "info");
-      
-      // Try login with backend
-      fetch(`${API_BASE}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: "merchant123" })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.error && data.error !== "Invalid credentials") {
-          this.showToast(data.error, "error");
-          return;
-        }
-
-        if (data.token) {
-          localStorage.setItem("ao_jwt_token", data.token);
-          if (data.user.role === "merchant" && data.merchantProfile) {
-            this.isMerchantLoggedIn = true;
-            this.isAdminLoggedIn = false;
-            this.isCustomerLoggedIn = false;
-            this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("dashboard");
-            this.showToast(`Welcome back, ${this.merchantProfile.shopName || this.merchantProfile.shop_name}!`, "success");
-          } else {
-            this.isCustomerLoggedIn = true;
-            this.isMerchantLoggedIn = false;
-            this.isAdminLoggedIn = false;
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("storefront");
-            this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
-          }
-        } else {
-          // New customer user -> Register in Neon backend
-          fetch(`${API_BASE}/api/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password: "customer123", role: "customer" })
-          })
-          .then(res => res.json())
-          .then(regData => {
-            if (regData.token) {
-              localStorage.setItem("ao_jwt_token", regData.token);
-            }
-            this.isCustomerLoggedIn = true;
-            this.isMerchantLoggedIn = false;
-            this.isAdminLoggedIn = false;
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("storefront");
-            this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
-          })
-          .catch(() => {
-            this.isCustomerLoggedIn = true;
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("storefront");
-            this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
-          });
-        }
-      })
-      .catch(() => {
-        // Local fallback
-        const merchant = this.merchants.find(m => m.email && m.email.toLowerCase() === email);
-        if (merchant) {
-          this.isMerchantLoggedIn = true;
-          this.merchantProfile = { ...merchant };
-          this.saveMerchantProfileToStorage();
-          this.closeMerchantAuth();
-          this.switchAppView("dashboard");
-          this.showToast(`Welcome back, ${this.merchantProfile.shopName || this.merchantProfile.shop_name}!`, "success");
-        } else {
-          this.isCustomerLoggedIn = true;
-          this.saveMerchantProfileToStorage();
-          this.closeMerchantAuth();
-          this.switchAppView("storefront");
-          this.showToast(`Welcome! Signed in successfully as ${email}`, "success");
-        }
-      });
-    }
+    const password = document.getElementById("auth-email-password-input").value;
+    await this.submitPasswordLogin(event.target, { email, password });
   }
 
-  toggleAdminPasswordVisibility() {
-    const input = document.getElementById("auth-admin-password-input");
-    const icon = document.getElementById("toggle-admin-pass-btn");
-    if (!input || !icon) return;
-
-    if (input.type === "password") {
-      input.type = "text";
-      icon.classList.remove("fa-eye-slash");
-      icon.classList.add("fa-eye");
-    } else {
-      input.type = "password";
-      icon.classList.remove("fa-eye");
-      icon.classList.add("fa-eye-slash");
-    }
-  }
-
-  handleAdminPasswordSubmit(event) {
+  // Phone + password login
+  async handlePhoneLoginSubmit(event) {
     event.preventDefault();
-    const password = document.getElementById("auth-admin-password-input").value;
-    
-    this.showToast("Verifying admin credentials with Neon DB...", "info");
-
-    fetch(`${API_BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "korantenghenry2012@gmail.com", password })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.token && data.user && data.user.role === "admin") {
-        localStorage.setItem("ao_jwt_token", data.token);
-        this.isAdminLoggedIn = true;
-        this.isMerchantLoggedIn = false;
-        this.isCustomerLoggedIn = false;
-        this.saveMerchantProfileToStorage();
-        
-        this.closeMerchantAuth();
-        this.switchAppView("admin-dashboard");
-        this.showToast("Welcome back, Administrator Kwame!", "success");
-      } else {
-        this.showToast("Incorrect password. Please try again.", "error");
-      }
-    })
-    .catch(() => {
-      // Fallback
-      if (password === "G@laxy2012") {
-        this.isAdminLoggedIn = true;
-        this.saveMerchantProfileToStorage();
-        this.closeMerchantAuth();
-        this.switchAppView("admin-dashboard");
-        this.showToast("Welcome back, Administrator Kwame!", "success");
-      } else {
-        this.showToast("Incorrect password. Please try again.", "error");
-      }
-    });
+    const phone = document.getElementById("auth-phone-input").value.trim();
+    const password = document.getElementById("auth-phone-password-input").value;
+    await this.submitPasswordLogin(event.target, { phone, password });
   }
 
-  simulatePhoneAuth(event) {
-    event.preventDefault();
-    const phoneInput = document.getElementById("auth-phone-input").value.trim();
-    const smsGroup = document.getElementById("auth-sms-code-group");
-    const submitBtn = document.getElementById("auth-submit-btn");
+  async submitPasswordLogin(form, credentials) {
+    if (!credentials.password) {
+      this.showToast("Please enter your password.", "error");
+      return;
+    }
 
-    const cleanPhone = phoneInput.replace(/[^0-9]/g, "");
+    const submitBtn = form.querySelector("button[type=submit]");
+    const originalText = submitBtn ? submitBtn.textContent : "";
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Logging in..."; }
 
-    if (smsGroup.style.display === "none") {
-      // Step 1: Send SMS
-      this.showToast(`SMS Verification Code sent to ${phoneInput}`, "success");
-      smsGroup.style.display = "block";
-      submitBtn.textContent = "Verify & Log In";
-      const smsInput = document.getElementById("auth-sms-input");
-      if (smsInput) {
-        smsInput.required = true;
-        smsInput.focus();
-      }
-    } else {
-      // Step 2: Validate code (Accept any 4+ digit code)
-      const smsCode = document.getElementById("auth-sms-input").value.trim();
-      if (smsCode.length < 4) {
-        this.showToast("Please enter a valid verification code.", "error");
-        return;
-      }
+    const res = await apiRequest("/api/auth/login", { method: "POST", body: credentials });
 
-      this.showToast("Verifying code with backend...", "info");
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
 
-      fetch(`${API_BASE}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone, password: "merchant123" })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.token) {
-          localStorage.setItem("ao_jwt_token", data.token);
-          if (data.user.role === "merchant" && data.merchantProfile) {
-            this.isMerchantLoggedIn = true;
-            this.isAdminLoggedIn = false;
-            this.isCustomerLoggedIn = false;
-            this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile);
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("dashboard");
-            this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
-          } else {
-            this.isCustomerLoggedIn = true;
-            this.isMerchantLoggedIn = false;
-            this.isAdminLoggedIn = false;
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("storefront");
-            this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
-          }
-        } else {
-          // Register customer phone
-          fetch(`${API_BASE}/api/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: cleanPhone, password: "customer123", role: "customer" })
-          })
-          .then(res => res.json())
-          .then(regData => {
-            if (regData.token) localStorage.setItem("ao_jwt_token", regData.token);
-            this.isCustomerLoggedIn = true;
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("storefront");
-            this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
-          })
-          .catch(() => {
-            this.isCustomerLoggedIn = true;
-            this.saveMerchantProfileToStorage();
-            this.closeMerchantAuth();
-            this.switchAppView("storefront");
-            this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
-          });
-        }
-      })
-      .catch(() => {
-        const merchant = this.merchants.find(m => {
-          const cleanMerchantPhone = m.phone.replace(/[^0-9]/g, "");
-          return cleanMerchantPhone === cleanPhone || m.phone.includes(phoneInput);
-        });
-        if (merchant) {
-          this.isMerchantLoggedIn = true;
-          this.merchantProfile = { ...merchant };
-          this.saveMerchantProfileToStorage();
-          this.closeMerchantAuth();
-          this.switchAppView("dashboard");
-          this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
-        } else {
-          this.isCustomerLoggedIn = true;
-          this.saveMerchantProfileToStorage();
-          this.closeMerchantAuth();
-          this.switchAppView("storefront");
-          this.showToast(`Signed in successfully with ${phoneInput}!`, "success");
-        }
-      });
+    if (!res.ok || !res.data.token) {
+      const message = res.status === 401 && res.error === "Invalid credentials"
+        ? "Incorrect login details. Please check and try again."
+        : res.error;
+      this.showToast(message, "error");
+      return;
+    }
+
+    await this.applyLoginResult(res.data);
+  }
+
+  togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    const icon = btn ? btn.querySelector("i") : null;
+    if (icon) {
+      icon.classList.toggle("fa-eye", show);
+      icon.classList.toggle("fa-eye-slash", !show);
     }
   }
 
-  logoutMerchant() {
+  logoutMerchant(expired = false) {
     localStorage.removeItem("ao_jwt_token");
+    localStorage.removeItem("ao_user_email");
     this.isMerchantLoggedIn = false;
     this.merchantProfile = null;
     this.isAdminLoggedIn = false;
     this.isCustomerLoggedIn = false;
     this.saveMerchantProfileToStorage();
-    
+    signOut(auth).catch(() => {});
+
     this.switchAppView("storefront");
-    this.showToast("Logged out successfully", "success");
+    // Drop listings only the signed-in user could see (hidden, pending, suspended shops)
+    this.loadBackendData();
+    this.showToast(expired ? "Your session expired. Please log in again." : "Logged out successfully", expired ? "warning" : "success");
   }
 
-  // ============================================
-  // NEW USER ONBOARDING WIZARD
-  // ============================================
-  openOnboarding(prefillPhone = "") {
-    const modal = document.getElementById("onboarding-modal");
-    modal.style.display = "flex";
-
-    if (prefillPhone) {
-      const phoneField = document.getElementById("onboard-phone");
-      if (phoneField) phoneField.value = prefillPhone;
-    }
-
-    this.goToOnboardingStep(1);
-  }
-
-  closeOnboarding() {
-    const modal = document.getElementById("onboarding-modal");
-    modal.style.display = "none";
-
-    document.getElementById("onboarding-form").reset();
-    this.goToOnboardingStep(1);
-  }
-
-  cancelOnboarding() {
-    this.closeOnboarding();
-    this.showToast("Setup cancelled. You can register again anytime.", "info");
-  }
-
-  goToOnboardingStep(step) {
-    const step1 = document.getElementById("onboarding-step-1");
-    const step2 = document.getElementById("onboarding-step-2");
-    const dot1 = document.getElementById("onboard-step-1-dot");
-    const dot2 = document.getElementById("onboard-step-2-dot");
-    const line = document.getElementById("onboard-step-line");
-    const title = document.getElementById("onboarding-title-text");
-    const subtitle = document.getElementById("onboarding-subtitle-text");
-
-    if (step === 1) {
-      step1.style.display = "block";
-      step2.style.display = "none";
-      dot1.className = "step-dot active";
-      dot2.className = "step-dot";
-      line.className = "step-line";
-      title.textContent = "Welcome! Tell us about yourself";
-      subtitle.textContent = "This helps buyers find and trust your shop";
-    } else if (step === 2) {
-      const fullName = document.getElementById("onboard-fullname").value.trim();
-      const phone = document.getElementById("onboard-phone").value.trim();
-      
-      if (!fullName) {
-        this.showToast("Please enter your full name.", "error");
-        document.getElementById("onboard-fullname").focus();
-        return;
-      }
-      if (!phone) {
-        this.showToast("Please enter your phone number.", "error");
-        document.getElementById("onboard-phone").focus();
-        return;
-      }
-
-      step1.style.display = "none";
-      step2.style.display = "block";
-      dot1.className = "step-dot completed";
-      dot2.className = "step-dot active";
-      line.className = "step-line active";
-      title.textContent = "Set up your shop";
-      subtitle.textContent = "Tell buyers where to find you in Abossey Okai";
-    }
-  }
-
-  submitOnboarding(event) {
-    event.preventDefault();
-
-    const fullName = document.getElementById("onboard-fullname").value.trim();
-    const email = document.getElementById("onboard-email").value.trim();
-    const phone = document.getElementById("onboard-phone").value.trim();
-    const shopName = document.getElementById("onboard-shop-name").value.trim();
-    const shopLocation = document.getElementById("onboard-shop-location").value.trim();
-    const shopSpecialty = document.getElementById("onboard-shop-specialty").value;
-    const shopDesc = document.getElementById("onboard-shop-desc").value.trim();
-
-    if (!shopName) {
-      this.showToast("Please enter your shop name.", "error");
-      document.getElementById("onboard-shop-name").focus();
-      return;
-    }
-    if (!shopLocation) {
-      this.showToast("Please enter your shop location.", "error");
-      document.getElementById("onboard-shop-location").focus();
-      return;
-    }
-
-    this.showToast("Creating merchant profile in Neon DB...", "info");
-
-    fetch(`${API_BASE}/api/auth/register-merchant`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email || `${shopName.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com`,
-        phone: phone || "+233240000000",
-        password: "merchant123",
-        full_name: fullName,
-        shop_name: shopName,
-        shop_location: shopLocation,
-        shop_coordinates: "5.5565, -0.2282",
-        shop_description: shopDesc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
-        shop_specialty: shopSpecialty
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.token) {
-        localStorage.setItem("ao_jwt_token", data.token);
-      }
-      this.merchantProfile = this.normalizeMerchantProfile(data.merchantProfile) || {
-        shopName, ownerName: fullName, email, phone, location: shopLocation,
-        coordinates: "5.5565, -0.2282", description: shopDesc, specialty: shopSpecialty,
-        verified: false, since: "Jan 2026"
-      };
-
-      this.isMerchantLoggedIn = true;
-      localStorage.setItem("ao_onboarding_complete", "true");
-      this.saveMerchantProfileToStorage();
-
-      this.closeOnboarding();
-      this.updatePortalButtonState();
-      this.switchAppView("dashboard");
-      this.showToast(`Welcome to Abbossey Okai Magazine, ${fullName}! Your shop "${shopName}" is all set.`, "success");
-    })
-    .catch(() => {
-      // Local fallback
-      this.merchantProfile = {
-        shopName, ownerName: fullName, email, phone, location: shopLocation,
-        coordinates: "5.5565, -0.2282", description: shopDesc, specialty: shopSpecialty,
-        verified: false, since: "Jan 2026"
-      };
-      this.isMerchantLoggedIn = true;
-      localStorage.setItem("ao_onboarding_complete", "true");
-      this.saveMerchantProfileToStorage();
-      this.closeOnboarding();
-      this.updatePortalButtonState();
-      this.switchAppView("dashboard");
-      this.showToast(`Welcome to Abbossey Okai Magazine, ${fullName}! Your shop "${shopName}" is all set.`, "success");
-    });
-  }
   updatePortalButtonState() {
     const btn = document.getElementById("merchant-portal-btn");
     if (!btn) return;
@@ -3671,16 +3395,8 @@ class AbbosseyOkaiApp {
       this.showToast("Shop location and map pinpoint saved successfully!", "success");
     } catch (err) {
       console.error("Save location error:", err);
-      // Fallback save to localStorage if backend is unreachable
-      const coordsString = `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`;
-      const finalLocation = customText || loc.formatted_address || `Abossey Okai (${coordsString})`;
-      this.merchantProfile.coordinates = coordsString;
-      this.merchantProfile.latitude = loc.latitude;
-      this.merchantProfile.longitude = loc.longitude;
-      this.merchantProfile.location = finalLocation;
-      this.merchantProfile.location_data = payload;
-      this.saveMerchantProfileToStorage();
-      this.showToast("Shop location saved locally.", "success");
+      const message = err instanceof TypeError ? "Could not reach the server. Check your connection and try again." : err.message;
+      this.showToast(`Shop location not saved: ${message}`, "error");
     } finally {
       if (topBtn) { topBtn.disabled = false; topBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save Shop Location'; }
       if (btmBtn) { btmBtn.disabled = false; btmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Save & Publish Shop Location'; }
@@ -3733,7 +3449,7 @@ class AbbosseyOkaiApp {
     if (locInput) locInput.value = this.merchantProfile.location || '';
     if (coordsInput) coordsInput.value = this.merchantProfile.coordinates || '';
     if (descTextarea) {
-      descTextarea.value = this.merchantProfile.description || 'Premium Akebono ceramic brake pads offering zero noise, low dust, and exceptional stopping power. Directly imported from USA. Certified fitment for Toyota, Honda and other major vehicle brands. Quality you can trust, safety you can feel.';
+      descTextarea.value = this.merchantProfile.description || '';
       this.updateDescCharCount(descTextarea);
     }
     
@@ -4112,7 +3828,7 @@ class AbbosseyOkaiApp {
   }
 
   previewMerchantShop() {
-    this.switchView('storefront');
+    this.switchAppView('storefront');
     this.searchQuery = this.merchantProfile.shopName;
     this.renderCatalog();
     this.showToast(`Previewing "${this.merchantProfile.shopName}" on storefront.`, "info");
@@ -4123,46 +3839,90 @@ class AbbosseyOkaiApp {
     if (!file) return;
 
     // Shop logos display small, so 400px is plenty
-    compressImageFile(file, 400, 0.85).then(dataUrl => {
-      this.merchantProfile.avatar = dataUrl;
+    compressImageFile(file, 400, 0.85).then(async dataUrl => {
+      const res = await apiRequest(`/api/merchants/${this.merchantProfile.id}`, {
+        method: "PUT",
+        body: { avatar_url: dataUrl }
+      });
+      if (!res.ok) {
+        this.showToast(`Could not update logo: ${res.error}`, "error");
+        return;
+      }
+      this.merchantProfile = this.normalizeMerchantProfile(res.data.merchant);
       this.saveMerchantProfileToStorage();
       this.renderMerchantProfile();
-      this.showToast("Shop logo updated successfully!", "success");
-    });
+      this.showToast("Shop logo updated!", "success");
+    }).catch(() => this.showToast("Could not read that image. Please try another file.", "error"));
   }
 
-  saveMerchantProfile(event) {
+  async saveMerchantProfile(event) {
     event.preventDefault();
-    
-    this.merchantProfile.shopName = document.getElementById('settings-shop-name').value;
-    this.merchantProfile.phone = document.getElementById('settings-contact-phone').value;
-    this.merchantProfile.location = document.getElementById('settings-location').value;
-    this.merchantProfile.coordinates = document.getElementById('settings-coordinates').value;
-    this.merchantProfile.description = document.getElementById('settings-description').value;
+    if (!this.merchantProfile?.id) {
+      this.showToast("Please log in again to update your shop.", "error");
+      return;
+    }
 
-    // Category tags — parse comma-separated input
-    const tagsRaw = document.getElementById('settings-category-tags').value;
-    this.merchantProfile.categoryTags = tagsRaw
-      .split(',')
-      .map(t => t.trim())
-      .filter(t => t.length > 0);
-    this.renderCategoryTagsPreview();
+    const saveBtn = document.getElementById("save-settings-btn");
+    const originalHtml = saveBtn ? saveBtn.innerHTML : "";
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; }
 
-    this.saveMerchantProfileToStorage();
-    this.renderMerchantProfile();
-    
-    // Update all existing items owned by this merchant
-    this.products.forEach(p => {
-      if (p.id.startsWith('merchant-') || p.merchant.shopName === this.merchantProfile.shopName) {
-        p.merchant.shopName = this.merchantProfile.shopName;
-        p.merchant.phone = this.merchantProfile.phone;
-        p.merchant.location = this.merchantProfile.location;
-        p.merchant.coordinates = this.merchantProfile.coordinates;
+    const res = await apiRequest(`/api/merchants/${this.merchantProfile.id}`, {
+      method: "PUT",
+      body: {
+        shop_name: document.getElementById('settings-shop-name').value.trim(),
+        phone: document.getElementById('settings-contact-phone').value.trim(),
+        location: document.getElementById('settings-location').value.trim(),
+        coordinates: document.getElementById('settings-coordinates').value.trim(),
+        description: document.getElementById('settings-description').value.trim(),
       }
     });
-    this.saveProductsToStorage();
 
-    this.showToast('Merchant settings saved successfully!', 'success');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = originalHtml; }
+
+    if (!res.ok) {
+      this.showToast(`Could not save shop profile: ${res.error}`, "error");
+      return;
+    }
+
+    this.merchantProfile = this.normalizeMerchantProfile(res.data.merchant);
+    this.saveMerchantProfileToStorage();
+    this.renderMerchantProfile();
+    // Listings show the shop's name/phone/location, so refresh them
+    await this.loadBackendData();
+    this.showToast('Shop profile saved!', 'success');
+  }
+
+  async changeMerchantPassword(event) {
+    event.preventDefault();
+    const currentInput = document.getElementById("settings-current-password");
+    const newInput = document.getElementById("settings-new-password");
+    const newPassword = newInput.value;
+
+    if (newPassword.length < 8) {
+      this.showToast("New password must be at least 8 characters.", "error");
+      return;
+    }
+
+    const res = await apiRequest("/api/auth/change-password", {
+      method: "POST",
+      body: { current_password: currentInput.value, new_password: newPassword }
+    });
+
+    if (!res.ok) {
+      this.showToast(res.error, "error");
+      return;
+    }
+
+    currentInput.value = "";
+    newInput.value = "";
+    this.showToast("Password updated. Use your new password next time you log in.", "success");
+  }
+
+  // Products belonging to the logged-in merchant
+  getMyProducts() {
+    if (!this.merchantProfile) return [];
+    const myId = this.merchantProfile.id;
+    return this.products.filter(p => myId ? p.merchantId === myId : p.merchant.shopName === this.merchantProfile.shopName);
   }
 
   // Inventory stats calculation
@@ -4170,7 +3930,7 @@ class AbbosseyOkaiApp {
     if (!this.merchantProfile) return;
 
     // Filter items belonging to current merchant
-    const merchantItems = this.products.filter(p => p.merchant.shopName === this.merchantProfile.shopName);
+    const merchantItems = this.getMyProducts();
     
     // Total Visitors: sum of all product views
     const totalVisitors = merchantItems.reduce((acc, p) => acc + (p.views || 0), 0);
@@ -4186,8 +3946,7 @@ class AbbosseyOkaiApp {
 
   openMostViewedModal() {
     if (!this.merchantProfile) return;
-    const merchantItems = this.products
-      .filter(p => p.merchant.shopName === this.merchantProfile.shopName)
+    const merchantItems = this.getMyProducts()
       .slice()
       .sort((a, b) => (b.views || 0) - (a.views || 0));
 
@@ -4206,7 +3965,7 @@ class AbbosseyOkaiApp {
           <div class="most-viewed-item">
             <div class="most-viewed-rank ${rankClass}">${rank}</div>
             <div class="most-viewed-item-info">
-              <span class="most-viewed-item-name">${p.name}</span>
+              <span class="most-viewed-item-name">${escapeHtml(p.name)}</span>
               <div class="most-viewed-bar-wrap">
                 <div class="most-viewed-bar" style="width:${barWidth}%"></div>
               </div>
@@ -4235,7 +3994,7 @@ class AbbosseyOkaiApp {
     const counterLabel = document.getElementById("inventory-count");
     if (!tableBody) return;
 
-    const myItems = this.products.filter(p => p.merchant.shopName === this.merchantProfile.shopName);
+    const myItems = this.getMyProducts();
     
     // Read active inventory tab filters
     const activeTab = document.querySelector(".inventory-tab.active");
@@ -4284,7 +4043,7 @@ class AbbosseyOkaiApp {
 
     let imgTag = "";
     if (p.images && p.images.length > 0) {
-      imgTag = `<img src="${p.images[0]}" class="table-product-img" loading="lazy" decoding="async" alt="${p.name}">`;
+      imgTag = `<img src="${escapeHtml(p.images[0])}" class="table-product-img" loading="lazy" decoding="async" alt="${escapeHtml(p.name)}">`;
     } else {
       imgTag = `<div class="table-product-img" style="background:#F1F5F9; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">${p.mainType === 'parts' ? '⚙️' : '🔌'}</div>`;
     }
@@ -4293,8 +4052,8 @@ class AbbosseyOkaiApp {
       <div class="table-product-cell">
         ${imgTag}
         <div class="table-product-info">
-          <span class="table-product-name">${p.name}</span>
-          <span class="table-product-cat">${p.brand} &bull; ${p.category}</span>
+          <span class="table-product-name">${escapeHtml(p.name)}</span>
+          <span class="table-product-cat">${escapeHtml(p.brand)} &bull; ${escapeHtml(p.category)}</span>
         </div>
       </div>`;
 
@@ -4316,7 +4075,7 @@ class AbbosseyOkaiApp {
   // Open full inventory page overlay
   openAllInventory() {
     if (!this.merchantProfile) return;
-    const allItems = this.products.filter(p => p.merchant.shopName === this.merchantProfile.shopName);
+    const allItems = this.getMyProducts();
 
     const panel = document.getElementById('all-inventory-panel');
     const tbody = document.getElementById('all-inventory-table-body');
@@ -4366,22 +4125,25 @@ class AbbosseyOkaiApp {
     });
   }
 
-  deleteProductFromForm() {
+  async deleteProductFromForm() {
     if (!this.editingProductId) return;
+    if (!confirm("Are you sure you want to delete this product listing? This action cannot be undone.")) return;
 
-    if (confirm("Are you sure you want to delete this product listing? This action cannot be undone.")) {
-      const name = document.getElementById("form-product-name").value;
-      this.products = this.products.filter(p => p.id !== this.editingProductId);
-      this.saveProductsToStorage();
-
-      this.closeProductForm();
-      this.renderMerchantInventory();
-      this.renderMerchantMetrics();
-      this.renderBrandFilters();
-      this.renderCatalog();
-
-      this.showToast(`Product listing "${name}" deleted.`, "success");
+    const name = document.getElementById("form-product-name").value;
+    const res = await apiRequest(`/api/products/${this.editingProductId}`, { method: "DELETE" });
+    if (!res.ok) {
+      this.showToast(`Could not delete listing: ${res.error}`, "error");
+      return;
     }
+
+    if (this.isAdminLoggedIn) {
+      this.logAdminAction("LISTING_DELETE", name, "Listing deleted by admin from edit form");
+    }
+    this.editingProductId = null;
+    this.closeProductForm();
+    this.closeAllInventory();
+    await this.loadBackendData();
+    this.showToast(`Product listing "${name}" deleted.`, "success");
   }
 
   openProductForm(productId = null) {
@@ -4808,67 +4570,53 @@ class AbbosseyOkaiApp {
       }
     }
 
-    const token = localStorage.getItem("ao_jwt_token");
+    const submitBtn = document.getElementById("submit-form-save-btn");
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : "";
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; }
 
-    // Check if we are in edit mode
-    if (this.editingProductId) {
-      this.showToast("Updating listing in Neon DB...", "info");
-      try {
-        const res = await fetch(`${API_BASE}/api/products/${this.editingProductId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": token ? `Bearer ${token}` : ""
-          },
-          body: JSON.stringify({
-            name, brand, category, condition, price, stock,
-            description: desc, images: [...this.selectedFormImages],
-            compatibility: Array.isArray(compatibility) ? compatibility : null,
-            compatibility_text: compatibilityText
-          })
-        });
-        if (res.ok) {
-          this.showToast(`Product "${name}" updated in database!`, "success");
-        } else {
-          const errData = await res.json();
-          this.showToast(errData.error || "Failed to update product.", "error");
-        }
-      } catch (e) {
-        this.showToast("Could not reach backend server.", "error");
-      }
-      this.editingProductId = null;
-      this.closeProductForm();
-      await this.loadBackendData();
+    const payload = {
+      main_type: type,
+      name, brand, category, condition, price, stock,
+      description: desc, images: [...this.selectedFormImages],
+      // An empty list clears old fitment (e.g. when switching to Universal Fit)
+      compatibility: Array.isArray(compatibility) ? compatibility : [],
+      compatibility_text: compatibilityText
+    };
+
+    const isEdit = !!this.editingProductId;
+    const res = isEdit
+      ? await apiRequest(`/api/products/${this.editingProductId}`, { method: "PUT", body: payload })
+      : await apiRequest("/api/products", { method: "POST", body: payload });
+
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = originalBtnHtml; }
+
+    // Keep the form open on failure so the merchant doesn't lose what they typed
+    if (!res.ok) {
+      const tooLarge = res.status === 413 || res.status === 0;
+      this.showToast(
+        tooLarge && this.selectedFormImages.length > 0
+          ? "Could not save — the photos may be too large. Try fewer or smaller images."
+          : `Could not ${isEdit ? "update" : "publish"} listing: ${res.error}`,
+        "error"
+      );
+      return;
+    }
+
+    if (isEdit) {
+      if (this.isAdminLoggedIn) this.logAdminAction("LISTING_EDIT", name, "Listing edited by admin");
+      this.showToast(`"${name}" updated.`, "success");
+    } else if (res.data.product?.status === "Pending Review") {
+      this.showToast(`"${name}" submitted — it will go live once an admin approves it.`, "success");
     } else {
-      // Creating new product via POST /api/products
-      this.showToast("Publishing listing to Neon DB...", "info");
-      try {
-        const res = await fetch(`${API_BASE}/api/products`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": token ? `Bearer ${token}` : ""
-          },
-          body: JSON.stringify({
-            main_type: type,
-            name, brand, category, condition, price, stock,
-            description: desc, images: [...this.selectedFormImages],
-            compatibility: Array.isArray(compatibility) ? compatibility : null,
-            compatibility_text: compatibilityText
-          })
-        });
+      this.showToast(`"${name}" is now live on the marketplace!`, "success");
+    }
 
-        if (res.ok) {
-          this.showToast(`Product "${name}" published to database!`, "success");
-        } else {
-          const errData = await res.json();
-          this.showToast(errData.error || "Failed to publish product.", "error");
-        }
-      } catch (e) {
-        this.showToast("Could not reach backend server.", "error");
-      }
-      this.closeProductForm();
-      await this.loadBackendData();
+    this.editingProductId = null;
+    this.closeProductForm();
+    await this.loadBackendData();
+    if (this.currentView === "dashboard") {
+      const allPanel = document.getElementById("all-inventory-panel");
+      if (allPanel && allPanel.style.display === "flex") this.openAllInventory();
     }
   }
 
@@ -5000,9 +4748,35 @@ class AbbosseyOkaiApp {
   }
 
   // Simple Beautiful Notification alerts
+  // Results (success / error / warning) are shown to the user; "info" progress messages stay silent
   showToast(message, type = "success") {
-    // Silently log — no popup toasts. Operations run in the background.
     console.log(`[${type.toUpperCase()}] ${message}`);
+    if (type === "info") return;
+
+    const container = document.getElementById("global-toast-container");
+    if (!container) return;
+
+    const icons = {
+      success: '<i class="fa-solid fa-circle-check" style="color:var(--whatsapp-color);"></i>',
+      error: '<i class="fa-solid fa-triangle-exclamation" style="color:#DC2626;"></i>',
+      warning: '<i class="fa-solid fa-circle-exclamation" style="color:#F59E0B;"></i>',
+    };
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.setAttribute("role", type === "error" ? "alert" : "status");
+    toast.innerHTML = `${icons[type] || icons.success} <span>${escapeHtml(message)}</span>`;
+    container.appendChild(toast);
+
+    // Keep at most 3 on screen
+    while (container.children.length > 3) container.firstElementChild.remove();
+
+    requestAnimationFrame(() => toast.classList.add("show"));
+    const duration = type === "error" ? 6000 : 3500;
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 400);
+    }, duration);
   }
 
   // UI styling enhancements for first impress wow factor
@@ -5081,26 +4855,34 @@ class AbbosseyOkaiApp {
     }
   }
 
-  togglePremoderationSetting() {
+  async togglePremoderationSetting() {
     const checkbox = document.getElementById("admin-setting-premoderation");
     if (!checkbox) return;
-    this.premoderation = checkbox.checked;
-    localStorage.setItem("ao_admin_premoderation", this.premoderation ? "true" : "false");
-    this.showToast(`Pre-publish moderation queue ${this.premoderation ? "enabled" : "disabled"}.`, "success");
-    this.logAdminAction("SETTINGS_CHANGE", "Pre-publish Moderation", `Status set to ${this.premoderation}`);
+    const enabled = checkbox.checked;
+    if (!(await this.saveSetting("premoderation", { enabled }))) {
+      checkbox.checked = !enabled;
+      return;
+    }
+    this.premoderation = enabled;
+    this.showToast(`Pre-publish moderation ${enabled ? "enabled — new listings wait for your approval" : "disabled — new listings go live immediately"}.`, "success");
+    this.logAdminAction("SETTINGS_CHANGE", "Pre-publish Moderation", `Status set to ${enabled}`);
   }
 
-  toggleAnnouncementBannerSetting() {
+  async toggleAnnouncementBannerSetting() {
     const checkbox = document.getElementById("admin-setting-banner-toggle");
     if (!checkbox) return;
-    this.announcement.visible = checkbox.checked;
-    localStorage.setItem("ao_global_announcement", JSON.stringify(this.announcement));
+    const updated = { ...this.announcement, visible: checkbox.checked };
+    if (!(await this.saveSetting("announcement", updated))) {
+      checkbox.checked = !checkbox.checked;
+      return;
+    }
+    this.announcement = updated;
     this.renderAnnouncementBanner();
-    this.showToast(`System announcement banner ${this.announcement.visible ? "visible" : "hidden"}.`, "success");
-    this.logAdminAction("SETTINGS_CHANGE", "Announcement Banner Visibility", `Status set to ${this.announcement.visible}`);
+    this.showToast(`System announcement banner ${updated.visible ? "visible" : "hidden"}.`, "success");
+    this.logAdminAction("SETTINGS_CHANGE", "Announcement Banner Visibility", `Status set to ${updated.visible}`);
   }
 
-  saveAnnouncementBannerText() {
+  async saveAnnouncementBannerText() {
     const input = document.getElementById("admin-setting-banner-text");
     if (!input) return;
     const newText = input.value.trim();
@@ -5108,8 +4890,9 @@ class AbbosseyOkaiApp {
       this.showToast("Announcement text cannot be empty.", "error");
       return;
     }
-    this.announcement.text = newText;
-    localStorage.setItem("ao_global_announcement", JSON.stringify(this.announcement));
+    const updated = { ...this.announcement, text: newText };
+    if (!(await this.saveSetting("announcement", updated))) return;
+    this.announcement = updated;
     this.renderAnnouncementBanner();
     this.showToast("Announcement text updated.", "success");
     this.logAdminAction("SETTINGS_CHANGE", "Announcement Banner Text", `Text updated to: "${newText}"`);
@@ -5133,67 +4916,98 @@ class AbbosseyOkaiApp {
     this.renderAdminListings();
   }
 
-  async toggleMerchantVerification(shopName, isChecked) {
-    const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant || !merchant.id) return;
-
-    const token = localStorage.getItem("ao_jwt_token");
-    try {
-      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}/verify`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ verified: isChecked })
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        this.showToast(`Error: ${data.error || "Failed to update verification."}`, "error");
-        return;
-      }
-    } catch (err) {
-      console.error("Toggle verification error:", err);
-      this.showToast("Network error updating verification.", "error");
-      return;
-    }
-
-    this.showToast(`Merchant "${shopName}" verification status set to ${isChecked ? "Verified" : "Independent"}.`, "success");
-    this.logAdminAction("MERCHANT_VERIFY_TOGGLE", shopName, `Verified status set to ${isChecked}`);
-
-    await this.loadBackendData();
-    this.renderAdminMerchants();
-    this.renderCatalog();
+  findMerchantById(merchantId) {
+    return this.merchants.find(m => String(m.id) === String(merchantId));
   }
 
-  async editMerchantNotes(shopName) {
-    const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant || !merchant.id) return;
+  async toggleMerchantVerification(merchantId, isChecked) {
+    const merchant = this.findMerchantById(merchantId);
+    if (!merchant) return;
 
-    const currentNotes = merchant.verificationNotes || "";
-    const newNotes = prompt(`Enter verification review notes for "${shopName}":`, currentNotes);
-    if (newNotes === null) return;
-
-    const token = localStorage.getItem("ao_jwt_token");
-    try {
-      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}/verify`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ verified: merchant.verified, verification_notes: newNotes.trim() })
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        this.showToast(`Error: ${data.error || "Failed to update notes."}`, "error");
-        return;
-      }
-    } catch (err) {
-      console.error("Edit merchant notes error:", err);
-      this.showToast("Network error updating notes.", "error");
+    const res = await apiRequest(`/api/merchants/${merchant.id}/verify`, {
+      method: "PATCH",
+      body: { verified: isChecked }
+    });
+    if (!res.ok) {
+      this.showToast(`Could not update verification: ${res.error}`, "error");
+      this.renderAdminMerchants();
       return;
     }
 
-    this.showToast(`Notes updated for ${shopName}.`, "success");
-    this.logAdminAction("MERCHANT_VERIFY_TOGGLE", shopName, `Verification notes updated: "${newNotes}"`);
+    this.showToast(`"${merchant.shopName}" is now ${isChecked ? "Verified" : "Independent"}.`, "success");
 
     await this.loadBackendData();
     this.renderAdminMerchants();
+  }
+
+  async editMerchantNotes(merchantId) {
+    const merchant = this.findMerchantById(merchantId);
+    if (!merchant) return;
+
+    const newNotes = prompt(`Enter verification review notes for "${merchant.shopName}":`, merchant.verificationNotes || "");
+    if (newNotes === null) return;
+
+    const res = await apiRequest(`/api/merchants/${merchant.id}/verify`, {
+      method: "PATCH",
+      body: { verified: merchant.verified, verification_notes: newNotes.trim() }
+    });
+    if (!res.ok) {
+      this.showToast(`Could not update notes: ${res.error}`, "error");
+      return;
+    }
+
+    this.showToast(`Notes updated for ${merchant.shopName}.`, "success");
+    this.logAdminAction("MERCHANT_VERIFY_TOGGLE", merchant.shopName, `Verification notes updated: "${newNotes}"`);
+
+    await this.loadBackendData();
+    this.renderAdminMerchants();
+  }
+
+  // Show login details + a WhatsApp button (a direct click, so popup blockers allow it)
+  showMerchantCredentialsModal({ title, subtitle, shopName, email, phone, location, password, whatsappMessage }) {
+    document.getElementById("success-modal-title").textContent = title;
+    document.getElementById("success-modal-subtitle").textContent = subtitle;
+    document.getElementById("success-shop-name").textContent = shopName || "—";
+    document.getElementById("success-shop-email").textContent = email || "—";
+    document.getElementById("success-shop-phone").textContent = phone || "—";
+    document.getElementById("success-shop-location").textContent = location || "—";
+    document.getElementById("success-shop-passcode").textContent = password;
+
+    const waBtn = document.getElementById("btn-send-whatsapp-invite");
+    if (waBtn) {
+      const digits = (phone || "").replace(/[^0-9]/g, "");
+      waBtn.style.display = digits ? "" : "none";
+      waBtn.onclick = () => {
+        window.open(`https://api.whatsapp.com/send/?phone=${digits}&text=${encodeURIComponent(whatsappMessage)}`, "_blank");
+      };
+    }
+
+    document.getElementById("onboard-success-modal").style.display = "flex";
+  }
+
+  async resetMerchantPassword(merchantId) {
+    const merchant = this.findMerchantById(merchantId);
+    if (!merchant) return;
+    if (!confirm(`Issue a new temporary password for "${merchant.shopName}"? Their current password will stop working.`)) return;
+
+    const res = await apiRequest(`/api/admin/merchants/${merchant.id}/reset-password`, { method: "POST" });
+    if (!res.ok) {
+      this.showToast(`Could not reset password: ${res.error}`, "error");
+      return;
+    }
+
+    const temp = res.data.temporaryPassword;
+    this.showMerchantCredentialsModal({
+      title: "Password Reset",
+      subtitle: `A new temporary password was issued for ${merchant.shopName}. Their old password no longer works.`,
+      shopName: merchant.shopName,
+      email: merchant.email,
+      phone: merchant.phone,
+      location: merchant.location,
+      password: temp,
+      whatsappMessage: `Hello! Your ABBOSSEY OKAI MAGAZINE merchant password has been reset.\n\nLogin Email: ${merchant.email || "—"}\nOr Phone: ${merchant.phone || "—"}\nTemporary Password: ${temp}\n\nLog in here and change it under Shop Profile: ${window.location.origin}/`
+    });
+    this.showToast(`Temporary password issued for ${merchant.shopName}.`, "success");
   }
 
   logAdminAction(action, target, details) {
@@ -5290,19 +5104,20 @@ class AbbosseyOkaiApp {
     });
   }
 
-  addAdminBrand() {
+  async addAdminBrand() {
     const input = document.getElementById("admin-new-brand");
     if (!input) return;
     const brand = input.value.trim();
     if (!brand) return;
-    
+
     if (this.brands.includes(brand)) {
       this.showToast("Brand already exists.", "error");
       return;
     }
-    
-    this.brands.push(brand);
-    localStorage.setItem("ao_brands_list", JSON.stringify(this.brands));
+
+    const updated = [...this.brands, brand];
+    if (!(await this.saveSetting("form_brands", updated))) return;
+    this.brands = updated;
     input.value = "";
     this.showToast(`Brand "${brand}" added.`, "success");
     this.renderAdminBrandsList();
@@ -5310,10 +5125,11 @@ class AbbosseyOkaiApp {
     this.logAdminAction("TAXONOMY_ADD", `Brand: ${brand}`, "Added brand to catalog settings");
   }
 
-  deleteAdminBrand(brand) {
+  async deleteAdminBrand(brand) {
     if (!confirm(`Are you sure you want to remove brand "${brand}"?`)) return;
-    this.brands = this.brands.filter(b => b !== brand);
-    localStorage.setItem("ao_brands_list", JSON.stringify(this.brands));
+    const updated = this.brands.filter(b => b !== brand);
+    if (!(await this.saveSetting("form_brands", updated))) return;
+    this.brands = updated;
     this.showToast(`Brand "${brand}" removed.`, "success");
     this.renderAdminBrandsList();
     this.populateBrandsDatalist();
@@ -5328,7 +5144,7 @@ class AbbosseyOkaiApp {
     this.brands.forEach(brand => {
       const div = document.createElement("div");
       div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; padding:4px 0; border-bottom:1px solid #F1F5F9;";
-      div.innerHTML = `<span style="flex:1;">${brand}</span> <i class="fa-solid fa-trash-can" style="cursor:pointer; color:#DC2626;" onclick="app.deleteAdminBrand('${brand}')"></i>`;
+      div.innerHTML = `<span style="flex:1;">${escapeHtml(brand)}</span> <i class="fa-solid fa-trash-can" style="cursor:pointer; color:#DC2626;" onclick="app.deleteAdminBrand(${jsArg(brand)})"></i>`;
       container.appendChild(div);
     });
   }
@@ -5459,11 +5275,16 @@ class AbbosseyOkaiApp {
     const viewsEl = document.getElementById("admin-metric-views");
     if (viewsEl) viewsEl.textContent = totalViews.toLocaleString();
 
-    // Open reports
-    const savedReports = localStorage.getItem("ao_reported_listings");
-    const reports = savedReports ? JSON.parse(savedReports) : [];
+    // Open reports (from the database)
     const reportsEl = document.getElementById("admin-metric-reports");
-    if (reportsEl) reportsEl.textContent = reports.length;
+    if (reportsEl) {
+      apiRequest("/api/admin/analytics").then(res => {
+        if (res.ok) reportsEl.textContent = res.data.analytics?.openReports ?? 0;
+      });
+    }
+
+    const adminEmailEl = document.getElementById("admin-display-email-text");
+    if (adminEmailEl) adminEmailEl.textContent = localStorage.getItem("ao_user_email") || "";
 
     // Listings Breakdown Counts
     const liveCount = this.products.filter(p => p.status === "Live").length;
@@ -5576,90 +5397,83 @@ class AbbosseyOkaiApp {
     });
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:2rem 1rem; color:var(--text-muted);">${query ? `No merchants matching "${query}".` : "No onboarded merchants yet."}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:2rem 1rem; color:var(--text-muted);">${query ? `No merchants matching "${escapeHtml(query)}".` : "No onboarded merchants yet."}</td></tr>`;
       return;
     }
 
     filtered.forEach(m => {
       const tr = document.createElement("tr");
-      
+      const id = jsArg(m.id);
+
       const detailsCell = `
         <div style="display:flex; flex-direction:column; gap:0.25rem;">
-          <strong style="color:var(--charcoal);">${m.shopName} ${m.status === "Suspended" ? '<span class="badge badge-oos" style="font-size:0.65rem; padding:1px 4px;">SUSPENDED</span>' : ""}</strong>
-          <span style="font-size:0.8rem; color:var(--text-muted);"><i class="fa-solid fa-phone"></i> ${m.phone} | <i class="fa-solid fa-envelope"></i> ${m.email}</span>
-          <span style="font-size:0.75rem; display:inline-block; max-width:max-content; background:var(--bg-light); padding:2px 6px; border-radius:4px; font-weight:600; color:var(--primary-color);">${m.specialty.toUpperCase()}</span>
-        </div>
-      `;
-      
-      const locationCell = `
-        <div style="display:flex; flex-direction:column; gap:0.15rem; font-size:0.85rem;">
-          <span>${m.location}</span>
-          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-map-pin"></i> ${m.coordinates}</span>
+          <strong style="color:var(--charcoal);">${escapeHtml(m.shopName)} ${m.status === "Suspended" ? '<span class="badge badge-oos" style="font-size:0.65rem; padding:1px 4px;">SUSPENDED</span>' : ""}</strong>
+          <span style="font-size:0.8rem; color:var(--text-muted);"><i class="fa-solid fa-phone"></i> ${escapeHtml(m.phone || "—")} | <i class="fa-solid fa-envelope"></i> ${escapeHtml(m.email || "—")}</span>
+          <span style="font-size:0.75rem; display:inline-block; max-width:max-content; background:var(--bg-light); padding:2px 6px; border-radius:4px; font-weight:600; color:var(--primary-color);">${escapeHtml((m.specialty || "general").toUpperCase())}</span>
         </div>
       `;
 
-      const notes = m.verificationNotes ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem; border-left:2px solid var(--accent-color); padding-left:4px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${m.verificationNotes}">${m.verificationNotes}</div>` : "";
+      const locationCell = `
+        <div style="display:flex; flex-direction:column; gap:0.15rem; font-size:0.85rem;">
+          <span>${escapeHtml(m.location || "—")}</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-map-pin"></i> ${escapeHtml(m.coordinates)}</span>
+        </div>
+      `;
+
+      const notes = m.verificationNotes ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem; border-left:2px solid var(--accent-color); padding-left:4px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(m.verificationNotes)}">${escapeHtml(m.verificationNotes)}</div>` : "";
       const verificationCell = `
         <div style="display:flex; flex-direction:column; align-items:flex-start; gap:0.25rem;">
           <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.8rem; cursor:pointer; font-weight:600; margin:0;">
-            <input type="checkbox" ${m.verified ? "checked" : ""} onchange="app.toggleMerchantVerification('${m.shopName}', this.checked)"> Verified Shop
+            <input type="checkbox" ${m.verified ? "checked" : ""} onchange="app.toggleMerchantVerification(${id}, this.checked)"> Verified Shop
           </label>
           ${notes}
-          <button class="btn btn-secondary btn-sm" style="padding:2px 6px; font-size:0.7rem; display:inline-flex; align-items:center; gap:2px;" onclick="app.editMerchantNotes('${m.shopName}')">
+          <button class="btn btn-secondary btn-sm" style="padding:2px 6px; font-size:0.7rem; display:inline-flex; align-items:center; gap:2px;" onclick="app.editMerchantNotes(${id})">
             <i class="fa-solid fa-pen"></i> Review Notes
           </button>
         </div>
       `;
-      
+
       const isSuspended = m.status === "Suspended";
       const actionCell = `
-        <div style="display:flex; gap:0.35rem;">
-          <button class="btn btn-secondary btn-sm" style="color:${isSuspended ? "var(--whatsapp-color)" : "var(--accent-color)"}; border-color:${isSuspended ? "var(--whatsapp-color)" : "var(--accent-color)"}; padding:4px 8px; font-size:0.75rem;" onclick="app.toggleMerchantSuspension('${m.shopName}')">
+        <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" style="color:${isSuspended ? "var(--whatsapp-color)" : "var(--accent-color)"}; border-color:${isSuspended ? "var(--whatsapp-color)" : "var(--accent-color)"}; padding:4px 8px; font-size:0.75rem;" onclick="app.toggleMerchantSuspension(${id})">
             <i class="fa-solid ${isSuspended ? "fa-play" : "fa-pause"}"></i> ${isSuspended ? "Unsuspend" : "Suspend"}
           </button>
-          <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:4px 8px; font-size:0.75rem;" onclick="app.deleteMerchant('${m.shopName}')">
+          <button class="btn btn-secondary btn-sm" style="padding:4px 8px; font-size:0.75rem;" onclick="app.resetMerchantPassword(${id})">
+            <i class="fa-solid fa-key"></i> Reset Password
+          </button>
+          <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:4px 8px; font-size:0.75rem;" onclick="app.deleteMerchant(${id})">
             <i class="fa-solid fa-trash"></i> Delete
           </button>
         </div>
       `;
-      
+
       tr.innerHTML = `<td>${detailsCell}</td><td>${locationCell}</td><td>${verificationCell}</td><td>${actionCell}</td>`;
       tbody.appendChild(tr);
     });
   }
 
-  async toggleMerchantSuspension(shopName) {
-    const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant || !merchant.id) return;
+  async toggleMerchantSuspension(merchantId) {
+    const merchant = this.findMerchantById(merchantId);
+    if (!merchant) return;
 
-    const isSuspended = merchant.status === "Suspended";
-    const newStatus = isSuspended ? "Active" : "Suspended";
+    const newStatus = merchant.status === "Suspended" ? "Active" : "Suspended";
+    if (newStatus === "Suspended" && !confirm(`Suspend "${merchant.shopName}"? Their listings will be hidden from the marketplace and they won't be able to post until unsuspended.`)) return;
 
-    const token = localStorage.getItem("ao_jwt_token");
-    try {
-      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        this.showToast(`Error: ${data.error || "Failed to update status."}`, "error");
-        return;
-      }
-    } catch (err) {
-      console.error("Toggle suspension error:", err);
-      this.showToast("Network error updating merchant status.", "error");
+    const res = await apiRequest(`/api/merchants/${merchant.id}/status`, {
+      method: "PATCH",
+      body: { status: newStatus }
+    });
+    if (!res.ok) {
+      this.showToast(`Could not update merchant status: ${res.error}`, "error");
       return;
     }
 
-    this.showToast(`Merchant "${shopName}" is now ${newStatus}.`, "success");
-    this.logAdminAction("MERCHANT_STATUS_CHANGE", shopName, `Merchant status set to ${newStatus}`);
+    this.showToast(`"${merchant.shopName}" is now ${newStatus}.`, "success");
 
     await this.loadBackendData();
     this.renderAdminMerchants();
     this.renderAdminOverview();
-    this.renderCatalog();
   }
 
   async onboardMerchant(event) {
@@ -5667,7 +5481,7 @@ class AbbosseyOkaiApp {
 
     const shopName = document.getElementById("onboard-merchant-shop").value.trim();
     const phone = document.getElementById("onboard-merchant-phone").value.trim();
-    const email = document.getElementById("onboard-merchant-email").value.trim();
+    const email = document.getElementById("onboard-merchant-email").value.trim().toLowerCase();
     const specialty = document.getElementById("onboard-merchant-specialty").value;
     const location = document.getElementById("onboard-merchant-location").value.trim();
     const coords = document.getElementById("onboard-merchant-coords").value.trim();
@@ -5684,125 +5498,77 @@ class AbbosseyOkaiApp {
     const originalBtnText = submitBtn ? submitBtn.textContent : "";
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Registering..."; }
 
-    try {
-      // POST to Neon PostgreSQL backend — this is the source of truth
-      const res = await fetch(`${API_BASE}/api/auth/register-merchant`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email,
-          phone: phone,
-          password: "AoMerchant@2024",
-          full_name: shopName,
-          shop_name: shopName,
-          shop_location: location,
-          shop_coordinates: coords || "5.5562, -0.2284",
-          shop_description: desc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
-          shop_specialty: specialty || "general"
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        // Backend returned an error (e.g., 409 duplicate email, 400 validation)
-        const errMsg = data.error || "Registration failed. Please try again.";
-        this.showToast(`Error: ${errMsg}`, "error");
-        return;
+    // The backend creates the login account and generates a temporary password
+    const res = await apiRequest("/api/auth/register-merchant", {
+      method: "POST",
+      body: {
+        email,
+        phone,
+        full_name: shopName,
+        shop_name: shopName,
+        shop_location: location,
+        shop_coordinates: coords || "5.5562, -0.2284",
+        shop_description: desc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
+        shop_specialty: specialty || "general"
       }
+    });
 
-      // Backend save confirmed — now update local state
-      const passcode = "AO-" + Math.floor(1000 + Math.random() * 9000);
-      const newMerchant = {
-        id: data.merchantProfile?.id,
-        shopName: shopName,
-        phone: phone,
-        email: email,
-        specialty: specialty || "general",
-        location: location,
-        coordinates: coords || "5.5562, -0.2284",
-        description: desc || `${shopName} — Quality auto parts and accessories at Abossey Okai.`,
-        avatar: null,
-        verified: true,
-        passcode: passcode,
-        status: "Active",
-        since: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
-      };
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
 
-      this.merchants.push(newMerchant);
-
-      // Reset form
-      event.target.reset();
-
-      // Clear active map sector classes
-      document.querySelectorAll(".market-sector").forEach(sec => {
-        sec.classList.remove("active");
-        sec.style.borderColor = "#E2E8F0";
-        sec.style.background = "#fff";
-        sec.style.color = "var(--charcoal)";
-      });
-
-      this.logAdminAction("MERCHANT_ONBOARD", shopName, `Dealer registered — email: ${email}, phone: ${phone}, DB id: ${data.merchantProfile?.id}`);
-
-      // Populate success modal
-      document.getElementById("success-shop-name").textContent = shopName;
-      document.getElementById("success-shop-email").textContent = email;
-      document.getElementById("success-shop-phone").textContent = phone;
-      document.getElementById("success-shop-location").textContent = location;
-      document.getElementById("success-shop-passcode").textContent = passcode;
-
-      const waBtn = document.getElementById("btn-send-whatsapp-invite");
-      if (waBtn) {
-        waBtn.onclick = () => {
-          const message = `Hello! Your shop "${shopName}" is now registered on ABBOSSEY OKAI MAGAZINE.\n\nLogin Email: ${email}\nTemporary Password: AoMerchant@2024\nStall Location: ${location}\nYour Passcode: ${passcode}\n\nAccess your merchant portal here: http://localhost:5173/`;
-          const encoded = encodeURIComponent(message);
-          window.open(`https://api.whatsapp.com/send/?phone=${phone}&text=${encoded}`, "_blank");
-        };
-      }
-
-      document.getElementById("onboard-success-modal").style.display = "flex";
-      this.showToast(`✅ "${shopName}" successfully registered in the database!`, "success");
-
-      // Reload from backend to sync UI with real DB data
-      await this.loadBackendData();
-      this.renderAdminMerchants();
-      this.renderAdminOverview();
-
-    } catch (err) {
-      console.error("Onboard merchant error:", err);
-      this.showToast("Network error. Please check your connection and try again.", "error");
-    } finally {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+    if (!res.ok) {
+      this.showToast(`Could not register merchant: ${res.error}`, "error");
+      return;
     }
+
+    const temporaryPassword = res.data.temporaryPassword;
+    const savedPhone = res.data.merchantProfile?.phone || phone;
+
+    // Reset form
+    event.target.reset();
+
+    // Clear active map sector classes
+    document.querySelectorAll(".market-sector").forEach(sec => {
+      sec.classList.remove("active");
+      sec.style.borderColor = "#E2E8F0";
+      sec.style.background = "#fff";
+      sec.style.color = "var(--charcoal)";
+    });
+
+    this.logAdminAction("MERCHANT_ONBOARD", shopName, `Dealer registered — email: ${email}, phone: ${savedPhone}, DB id: ${res.data.merchantProfile?.id}`);
+
+    this.showMerchantCredentialsModal({
+      title: "Merchant Onboarded!",
+      subtitle: "Merchant shop has been successfully registered and verified on the platform.",
+      shopName,
+      email,
+      phone: savedPhone,
+      location,
+      password: temporaryPassword,
+      whatsappMessage: `Hello! Your shop "${shopName}" is now registered on ABBOSSEY OKAI MAGAZINE.\n\nLogin Email: ${email}\nOr Phone: ${savedPhone}\nTemporary Password: ${temporaryPassword}\nStall Location: ${location}\n\nLog in to your merchant portal here and change your password under Shop Profile: ${window.location.origin}/`
+    });
+    this.showToast(`"${shopName}" registered successfully.`, "success");
+
+    // Reload from backend to sync UI with real DB data
+    await this.loadBackendData();
+    this.renderAdminMerchants();
+    this.renderAdminOverview();
   }
 
-  async deleteMerchant(shopName) {
-    if (!confirm(`Are you sure you want to delete merchant "${shopName}"? This will also delete all their product listings permanently.`)) return;
+  async deleteMerchant(merchantId) {
+    const merchant = this.findMerchantById(merchantId);
+    if (!merchant) {
+      this.showToast("Merchant not found. Refresh the page and try again.", "error");
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete merchant "${merchant.shopName}"? This will also delete all their product listings permanently.`)) return;
 
-    const merchant = this.merchants.find(m => m.shopName === shopName);
-    if (!merchant || !merchant.id) {
-      this.showToast("Merchant not found or missing ID.", "error");
+    const res = await apiRequest(`/api/merchants/${merchant.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      this.showToast(`Could not delete merchant: ${res.error}`, "error");
       return;
     }
 
-    const token = localStorage.getItem("ao_jwt_token");
-    try {
-      const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        this.showToast(`Error: ${data.error || "Failed to delete merchant."}`, "error");
-        return;
-      }
-    } catch (err) {
-      console.error("Delete merchant error:", err);
-      this.showToast("Network error deleting merchant.", "error");
-      return;
-    }
-
-    this.showToast(`Deleted merchant "${shopName}" and all associated listings.`, "success");
+    this.showToast(`Deleted merchant "${merchant.shopName}" and all associated listings.`, "success");
 
     await this.loadBackendData();
     this.renderAdminMerchants();
@@ -5845,7 +5611,7 @@ class AbbosseyOkaiApp {
 
       let imgTag = "";
       if (p.images && p.images.length > 0) {
-        imgTag = `<img src="${p.images[0]}" class="table-product-img" loading="lazy" decoding="async" style="width:36px; height:36px; border-radius:4px; object-fit:cover; margin-right:8px;" alt="${p.name}">`;
+        imgTag = `<img src="${escapeHtml(p.images[0])}" class="table-product-img" loading="lazy" decoding="async" style="width:36px; height:36px; border-radius:4px; object-fit:cover; margin-right:8px;" alt="${escapeHtml(p.name)}">`;
       } else {
         imgTag = `<div class="table-product-img" style="width:36px; height:36px; border-radius:4px; background:#F1F5F9; display:flex; align-items:center; justify-content:center; font-size:1.1rem; margin-right:8px;">${p.mainType === 'parts' ? '⚙️' : '🔌'}</div>`;
       }
@@ -5860,8 +5626,8 @@ class AbbosseyOkaiApp {
         <div style="display:flex; align-items:center;">
           ${imgTag}
           <div style="display:flex; flex-direction:column;">
-            <strong style="font-size:0.9rem; color:var(--charcoal);">${p.name}</strong>
-            <span style="font-size:0.75rem; color:var(--text-muted);">${p.brand} &bull; ₵${p.price.toLocaleString()}</span>
+            <strong style="font-size:0.9rem; color:var(--charcoal);">${escapeHtml(p.name)}</strong>
+            <span style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(p.brand)} &bull; ₵${p.price.toLocaleString()}</span>
             <div style="margin-top: 2px;">
               <span class="badge ${statusBadgeClass}" style="font-size:0.65rem; padding:1px 4px;">${p.status}</span>
             </div>
@@ -5871,8 +5637,8 @@ class AbbosseyOkaiApp {
 
       const sellerCell = `
         <div style="display:flex; flex-direction:column;">
-          <strong style="font-size:0.85rem; color:var(--primary-color);">${p.merchant.shopName}</strong>
-          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-phone"></i> ${p.merchant.phone}</span>
+          <strong style="font-size:0.85rem; color:var(--primary-color);">${escapeHtml(p.merchant.shopName)}</strong>
+          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-phone"></i> ${escapeHtml(p.merchant.phone)}</span>
         </div>
       `;
 
@@ -6060,28 +5826,14 @@ class AbbosseyOkaiApp {
 
     tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem 1rem; color:var(--text-muted);">Loading reports...</td></tr>`;
 
-    let reports = [];
-    const token = localStorage.getItem("ao_jwt_token");
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/reports`, {
-        headers: { "Authorization": token ? `Bearer ${token}` : "" }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        reports = (data.reports || []).filter(r => r.status === "open");
-      }
-    } catch (e) {
-      console.warn("Could not load reports from backend:", e);
+    const res = await apiRequest("/api/admin/reports");
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:2rem 1rem; color:#DC2626;">Could not load reports: ${escapeHtml(res.error)}</td></tr>`;
+      return;
     }
 
-    // Fallback: also check localStorage legacy reports
-    try {
-      const savedReports = localStorage.getItem("ao_reported_listings");
-      const localReports = savedReports ? JSON.parse(savedReports) : [];
-      if (localReports.length > 0 && reports.length === 0) {
-        reports = localReports;
-      }
-    } catch (e) {}
+    const reports = (res.data.reports || []).filter(r => r.status === "open");
+    this.adminReports = reports;
 
     tbody.innerHTML = "";
     if (reports.length === 0) {
@@ -6091,37 +5843,36 @@ class AbbosseyOkaiApp {
 
     reports.forEach(r => {
       const tr = document.createElement("tr");
-      const productName = r.product_name || r.productName || "Unknown Product";
-      const shopName = r.merchant_shop_name || r.shopName || "Unknown Seller";
+      const productName = r.product_name || "Deleted product";
+      const shopName = r.merchant_shop_name || "Unknown Seller";
       const reason = r.reason || "No reason provided";
-      const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : (r.date || "");
-      const reportId = r.id;
-      const productId = r.product_id || r.productId;
+      const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : "";
+      const id = jsArg(r.id);
 
       const infoCell = `
         <div style="display:flex; flex-direction:column;">
-          <strong style="font-size:0.85rem; color:var(--charcoal);">${productName}</strong>
-          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-shop"></i> Seller: ${shopName}</span>
+          <strong style="font-size:0.85rem; color:var(--charcoal);">${escapeHtml(productName)}</strong>
+          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-shop"></i> Seller: ${escapeHtml(shopName)}</span>
         </div>
       `;
 
       const reasonCell = `
         <div style="display:flex; flex-direction:column; font-size:0.85rem;">
-          <span style="color:#DC2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> ${reason}</span>
-          <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
-          ${r.details ? `<span style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${r.details}</span>` : ''}
+          <span style="color:#DC2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(reason)}</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(date)}</span>
+          ${r.details ? `<span style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${escapeHtml(r.details)}</span>` : ''}
         </div>
       `;
 
       const actionCell = `
         <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-          <button class="btn btn-secondary btn-sm" style="color:var(--whatsapp-color); border-color:var(--whatsapp-color); padding:3px 6px; font-size:0.75rem;" onclick="app.dismissAdminReport('${reportId}')">
+          <button class="btn btn-secondary btn-sm" style="color:var(--whatsapp-color); border-color:var(--whatsapp-color); padding:3px 6px; font-size:0.75rem;" onclick="app.dismissAdminReport(${id})">
             <i class="fa-solid fa-check"></i> Dismiss
           </button>
-          <button class="btn btn-secondary btn-sm" style="color:var(--accent-color); border-color:var(--accent-color); padding:3px 6px; font-size:0.75rem;" onclick="app.warnMerchantFromReport('${reportId}', '${shopName}')">
+          <button class="btn btn-secondary btn-sm" style="color:var(--accent-color); border-color:var(--accent-color); padding:3px 6px; font-size:0.75rem;" onclick="app.warnMerchantFromReport(${id})" ${r.merchant_phone ? "" : "disabled title=\"No phone number on file\""}>
             <i class="fa-solid fa-circle-exclamation"></i> Warn Seller
           </button>
-          <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:3px 6px; font-size:0.75rem;" onclick="app.resolveAdminReportTakedown('${reportId}', '${productId}')">
+          <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:3px 6px; font-size:0.75rem;" onclick="app.resolveAdminReportTakedown(${id})" ${r.product_id ? "" : "disabled"}>
             <i class="fa-solid fa-trash"></i> Takedown
           </button>
         </div>
@@ -6132,102 +5883,62 @@ class AbbosseyOkaiApp {
     });
   }
 
-  async dismissAdminReport(reportId) {
-    const token = localStorage.getItem("ao_jwt_token");
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/reports/${reportId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
-        body: JSON.stringify({ status: "dismissed" })
-      });
-      if (res.ok) {
-        this.showToast("Report dismissed.", "success");
-        this.logAdminAction("REPORT_DISMISS", `Report #${reportId}`, "Admin dismissed buyer report flag");
-      } else {
-        this.showToast("Failed to dismiss report.", "error");
-        return;
-      }
-    } catch (e) {
-      // Fallback to localStorage for legacy reports
-      const savedReports = localStorage.getItem("ao_reported_listings");
-      let reports = savedReports ? JSON.parse(savedReports) : [];
-      reports = reports.filter(r => r.id !== reportId);
-      localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
-      this.showToast("Report dismissed.", "success");
-      this.logAdminAction("REPORT_DISMISS", `Report #${reportId}`, "Admin dismissed buyer report flag");
-    }
-    await this.renderAdminReports();
-    await this.loadBackendData();
+  findAdminReport(reportId) {
+    return (this.adminReports || []).find(r => String(r.id) === String(reportId));
   }
 
-  async resolveAdminReportTakedown(reportId, productId) {
-    const item = this.products.find(p => p.id == productId || String(p.id) === String(productId));
-    const productName = item ? item.name : "Unknown Product";
-    const token = localStorage.getItem("ao_jwt_token");
+  async setAdminReportStatus(reportId, status) {
+    const res = await apiRequest(`/api/admin/reports/${reportId}`, { method: "PATCH", body: { status } });
+    if (!res.ok) this.showToast(`Could not update report: ${res.error}`, "error");
+    return res.ok;
+  }
 
-    // 1. Delete the product via API
-    try {
-      const res = await fetch(`${API_BASE}/api/products/${productId}`, {
-        method: "DELETE",
-        headers: { "Authorization": token ? `Bearer ${token}` : "" }
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        this.showToast(errData.error || "Failed to take down listing.", "error");
-        return;
-      }
-    } catch (e) {
-      this.showToast("Could not reach backend server.", "error");
+  async dismissAdminReport(reportId) {
+    if (!(await this.setAdminReportStatus(reportId, "dismissed"))) return;
+    this.showToast("Report dismissed.", "success");
+    this.logAdminAction("REPORT_DISMISS", `Report #${reportId}`, "Admin dismissed buyer report flag");
+    await this.renderAdminReports();
+    this.renderAdminOverview();
+  }
+
+  async resolveAdminReportTakedown(reportId) {
+    const report = this.findAdminReport(reportId);
+    if (!report || !report.product_id) return;
+    const productName = report.product_name || "Unknown Product";
+    if (!confirm(`Take down "${productName}" permanently?`)) return;
+
+    // 1. Delete the product
+    const res = await apiRequest(`/api/products/${report.product_id}`, { method: "DELETE" });
+    if (!res.ok) {
+      this.showToast(`Could not take down listing: ${res.error}`, "error");
       return;
     }
 
-    // 2. Resolve the report via API
-    try {
-      await fetch(`${API_BASE}/api/admin/reports/${reportId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
-        body: JSON.stringify({ status: "resolved" })
-      });
-    } catch (e) {
-      // Fallback: remove from localStorage
-      const savedReports = localStorage.getItem("ao_reported_listings");
-      let reports = savedReports ? JSON.parse(savedReports) : [];
-      reports = reports.filter(r => r.id !== reportId);
-      localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
-    }
+    // 2. Resolve the report
+    await this.setAdminReportStatus(reportId, "resolved");
 
     this.showToast("Listing taken down and report resolved.", "success");
     this.logAdminAction("REPORT_TAKEDOWN", productName, "Listing taken down permanently due to buyer flag");
     await this.loadBackendData();
+    await this.renderAdminReports();
   }
 
-  async warnMerchantFromReport(reportId, shopName) {
-    const token = localStorage.getItem("ao_jwt_token");
-
-    // 1. Update the report status via API
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/reports/${reportId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
-        body: JSON.stringify({ status: "warned" })
-      });
-      if (res.ok) {
-        this.showToast(`Warning issued to dealer "${shopName}".`, "success");
-        this.logAdminAction("SETTINGS_CHANGE", shopName, `Warning issued due to listing flag. Merchant: ${shopName}`);
-      } else {
-        this.showToast("Failed to issue warning.", "error");
-        return;
-      }
-    } catch (e) {
-      // Fallback to localStorage for legacy reports
-      const savedReports = localStorage.getItem("ao_reported_listings");
-      let reports = savedReports ? JSON.parse(savedReports) : [];
-      reports = reports.filter(r => r.id !== reportId);
-      localStorage.setItem("ao_reported_listings", JSON.stringify(reports));
-      this.showToast(`Warning issued to dealer "${shopName}".`, "success");
-      this.logAdminAction("SETTINGS_CHANGE", shopName, `Warning issued due to listing flag. Merchant: ${shopName}`);
+  // Message the seller on WhatsApp about the flagged listing, then mark the report resolved
+  async warnMerchantFromReport(reportId) {
+    const report = this.findAdminReport(reportId);
+    if (!report || !report.merchant_phone) {
+      this.showToast("This seller has no phone number on file.", "error");
+      return;
     }
-    await this.loadBackendData();
+
+    const shopName = report.merchant_shop_name || "Seller";
+    const message = `Hello ${shopName}, this is ABBOSSEY OKAI MAGAZINE support.\n\nA buyer reported your listing "${report.product_name || "a listing"}" for: ${report.reason || "a policy concern"}.\n\nPlease review and correct it within 48 hours, otherwise it may be taken down.`;
+    window.open(`https://api.whatsapp.com/send/?phone=${report.merchant_phone.replace(/[^0-9]/g, "")}&text=${encodeURIComponent(message)}`, "_blank");
+
+    if (!(await this.setAdminReportStatus(reportId, "resolved"))) return;
+    this.showToast(`Warning sent to "${shopName}" and report resolved.`, "success");
+    this.logAdminAction("REPORT_WARN", shopName, `Seller warned about "${report.product_name}" (report #${reportId}): ${report.reason}`);
+    await this.renderAdminReports();
   }
 
   renderAdminTaxonomy() {
@@ -6265,12 +5976,37 @@ class AbbosseyOkaiApp {
       const pill = document.createElement("span");
       pill.className = "settings-tag";
       pill.style.cssText = "display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; background:#E2E8F0; padding:2px 8px; border-radius:12px; margin:2px;";
-      pill.innerHTML = `${model} <i class="fa-solid fa-times" style="cursor:pointer; color:var(--text-muted);" onclick="app.deleteAdminModel('${selectedMake}', '${model}')"></i>`;
+      pill.innerHTML = `${escapeHtml(model)} <i class="fa-solid fa-times" style="cursor:pointer; color:var(--text-muted);" onclick="app.deleteAdminModel(${jsArg(selectedMake)}, ${jsArg(model)})"></i>`;
       modelsDisplay.appendChild(pill);
     });
   }
 
-  addAdminMake() {
+  // Apply a change to the vehicle taxonomy and save it; rolls back if the save fails
+  async updateVehicleTaxonomy(mutate) {
+    const snapshot = JSON.parse(JSON.stringify(VEHICLE_TAXONOMY));
+    mutate(VEHICLE_TAXONOMY);
+    if (await this.saveSetting("vehicle_taxonomy", VEHICLE_TAXONOMY)) {
+      localStorage.setItem("ao_vehicle_taxonomy", JSON.stringify(VEHICLE_TAXONOMY));
+      return true;
+    }
+    Object.keys(VEHICLE_TAXONOMY).forEach(make => delete VEHICLE_TAXONOMY[make]);
+    Object.assign(VEHICLE_TAXONOMY, snapshot);
+    return false;
+  }
+
+  // Apply a change to a category list (spliced in place) and save it; rolls back on failure
+  async updateCategoryList(list, settingKey, storageKey, mutate) {
+    const snapshot = [...list];
+    mutate(list);
+    if (await this.saveSetting(settingKey, list)) {
+      localStorage.setItem(storageKey, JSON.stringify(list));
+      return true;
+    }
+    list.splice(0, list.length, ...snapshot);
+    return false;
+  }
+
+  async addAdminMake() {
     const input = document.getElementById("admin-new-make-input");
     const value = input.value.trim();
     if (!value) return;
@@ -6280,12 +6016,14 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    VEHICLE_TAXONOMY[value] = {
-      models: [],
-      years: ["2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025"]
-    };
-    
-    localStorage.setItem("ao_vehicle_taxonomy", JSON.stringify(VEHICLE_TAXONOMY));
+    const saved = await this.updateVehicleTaxonomy(tax => {
+      tax[value] = {
+        models: [],
+        years: ["2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025"]
+      };
+    });
+    if (!saved) return;
+
     input.value = "";
     this.showToast(`Make "${value}" added successfully.`, "success");
     this.logAdminAction("TAXONOMY_ADD", `Make: ${value}`, "Added vehicle make to settings");
@@ -6293,7 +6031,7 @@ class AbbosseyOkaiApp {
     this.populateSelectOptions();
   }
 
-  addAdminModel() {
+  async addAdminModel() {
     const selectedMake = document.getElementById("admin-select-make-edit").value;
     const input = document.getElementById("admin-new-model-input");
     const value = input.value.trim();
@@ -6304,8 +6042,8 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    VEHICLE_TAXONOMY[selectedMake].models.push(value);
-    localStorage.setItem("ao_vehicle_taxonomy", JSON.stringify(VEHICLE_TAXONOMY));
+    if (!(await this.updateVehicleTaxonomy(tax => tax[selectedMake].models.push(value)))) return;
+
     input.value = "";
     this.showToast(`Model "${value}" added for ${selectedMake}.`, "success");
     this.logAdminAction("TAXONOMY_ADD", `Model: ${selectedMake} ${value}`, "Added model to vehicle make");
@@ -6313,11 +6051,14 @@ class AbbosseyOkaiApp {
     this.populateSelectOptions();
   }
 
-  deleteAdminModel(make, model) {
+  async deleteAdminModel(make, model) {
     if (!confirm(`Are you sure you want to remove model "${model}" from ${make}?`)) return;
 
-    VEHICLE_TAXONOMY[make].models = VEHICLE_TAXONOMY[make].models.filter(m => m !== model);
-    localStorage.setItem("ao_vehicle_taxonomy", JSON.stringify(VEHICLE_TAXONOMY));
+    const saved = await this.updateVehicleTaxonomy(tax => {
+      tax[make].models = tax[make].models.filter(m => m !== model);
+    });
+    if (!saved) return;
+
     this.showToast(`Model "${model}" removed.`, "success");
     this.logAdminAction("TAXONOMY_DELETE", `Model: ${make} ${model}`, "Removed model from vehicle make");
     this.onAdminTaxonomyMakeChange();
@@ -6327,13 +6068,13 @@ class AbbosseyOkaiApp {
   renderAdminCategoriesLists() {
     const partList = document.getElementById("admin-part-categories-list");
     const accList = document.getElementById("admin-acc-categories-list");
-    
+
     if (partList) {
       partList.innerHTML = "";
       SPARE_PART_CATEGORIES.forEach(cat => {
         const div = document.createElement("div");
         div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; padding:4px 0; border-bottom:1px solid #F1F5F9;";
-        div.innerHTML = `<span style="flex:1;">${cat}</span> <i class="fa-solid fa-trash-can" style="cursor:pointer; color:#DC2626;" onclick="app.deleteAdminPartCategory('${cat}')"></i>`;
+        div.innerHTML = `<span style="flex:1;">${escapeHtml(cat)}</span> <i class="fa-solid fa-trash-can" style="cursor:pointer; color:#DC2626;" onclick="app.deleteAdminPartCategory(${jsArg(cat)})"></i>`;
         partList.appendChild(div);
       });
     }
@@ -6343,13 +6084,13 @@ class AbbosseyOkaiApp {
       CAR_ACCESSORY_CATEGORIES.forEach(cat => {
         const div = document.createElement("div");
         div.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; padding:4px 0; border-bottom:1px solid #F1F5F9;";
-        div.innerHTML = `<span style="flex:1;">${cat}</span> <i class="fa-solid fa-trash-can" style="cursor:pointer; color:#DC2626;" onclick="app.deleteAdminAccessoryCategory('${cat}')"></i>`;
+        div.innerHTML = `<span style="flex:1;">${escapeHtml(cat)}</span> <i class="fa-solid fa-trash-can" style="cursor:pointer; color:#DC2626;" onclick="app.deleteAdminAccessoryCategory(${jsArg(cat)})"></i>`;
         accList.appendChild(div);
       });
     }
   }
 
-  addAdminPartCategory() {
+  async addAdminPartCategory() {
     const input = document.getElementById("admin-new-part-cat");
     const val = input.value.trim();
     if (!val) return;
@@ -6359,8 +6100,7 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    SPARE_PART_CATEGORIES.push(val);
-    localStorage.setItem("ao_parts_categories", JSON.stringify(SPARE_PART_CATEGORIES));
+    if (!(await this.updateCategoryList(SPARE_PART_CATEGORIES, "part_categories", "ao_parts_categories", list => list.push(val)))) return;
     input.value = "";
     this.showToast(`Category "${val}" added.`, "success");
     this.logAdminAction("TAXONOMY_ADD", `Parts Category: ${val}`, "Added spare parts category");
@@ -6368,20 +6108,20 @@ class AbbosseyOkaiApp {
     this.populateSelectOptions();
   }
 
-  deleteAdminPartCategory(cat) {
+  async deleteAdminPartCategory(cat) {
     if (!confirm(`Are you sure you want to remove parts category "${cat}"?`)) return;
-    const idx = SPARE_PART_CATEGORIES.indexOf(cat);
-    if (idx !== -1) {
-      SPARE_PART_CATEGORIES.splice(idx, 1);
-      localStorage.setItem("ao_parts_categories", JSON.stringify(SPARE_PART_CATEGORIES));
-      this.showToast(`Category "${cat}" removed.`, "success");
-      this.logAdminAction("TAXONOMY_DELETE", `Parts Category: ${cat}`, "Removed spare parts category");
-      this.renderAdminCategoriesLists();
-      this.populateSelectOptions();
-    }
+    if (!SPARE_PART_CATEGORIES.includes(cat)) return;
+
+    const saved = await this.updateCategoryList(SPARE_PART_CATEGORIES, "part_categories", "ao_parts_categories",
+      list => list.splice(list.indexOf(cat), 1));
+    if (!saved) return;
+    this.showToast(`Category "${cat}" removed.`, "success");
+    this.logAdminAction("TAXONOMY_DELETE", `Parts Category: ${cat}`, "Removed spare parts category");
+    this.renderAdminCategoriesLists();
+    this.populateSelectOptions();
   }
 
-  addAdminAccessoryCategory() {
+  async addAdminAccessoryCategory() {
     const input = document.getElementById("admin-new-acc-cat");
     const val = input.value.trim();
     if (!val) return;
@@ -6391,8 +6131,7 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    CAR_ACCESSORY_CATEGORIES.push(val);
-    localStorage.setItem("ao_accessory_categories", JSON.stringify(CAR_ACCESSORY_CATEGORIES));
+    if (!(await this.updateCategoryList(CAR_ACCESSORY_CATEGORIES, "accessory_categories", "ao_accessory_categories", list => list.push(val)))) return;
     input.value = "";
     this.showToast(`Category "${val}" added.`, "success");
     this.logAdminAction("TAXONOMY_ADD", `Accessory Category: ${val}`, "Added car accessory category");
@@ -6400,17 +6139,17 @@ class AbbosseyOkaiApp {
     this.populateSelectOptions();
   }
 
-  deleteAdminAccessoryCategory(cat) {
+  async deleteAdminAccessoryCategory(cat) {
     if (!confirm(`Are you sure you want to remove accessory category "${cat}"?`)) return;
-    const idx = CAR_ACCESSORY_CATEGORIES.indexOf(cat);
-    if (idx !== -1) {
-      CAR_ACCESSORY_CATEGORIES.splice(idx, 1);
-      localStorage.setItem("ao_accessory_categories", JSON.stringify(CAR_ACCESSORY_CATEGORIES));
-      this.showToast(`Category "${cat}" removed.`, "success");
-      this.logAdminAction("TAXONOMY_DELETE", `Accessory Category: ${cat}`, "Removed car accessory category");
-      this.renderAdminCategoriesLists();
-      this.populateSelectOptions();
-    }
+    if (!CAR_ACCESSORY_CATEGORIES.includes(cat)) return;
+
+    const saved = await this.updateCategoryList(CAR_ACCESSORY_CATEGORIES, "accessory_categories", "ao_accessory_categories",
+      list => list.splice(list.indexOf(cat), 1));
+    if (!saved) return;
+    this.showToast(`Category "${cat}" removed.`, "success");
+    this.logAdminAction("TAXONOMY_DELETE", `Accessory Category: ${cat}`, "Removed car accessory category");
+    this.renderAdminCategoriesLists();
+    this.populateSelectOptions();
   }
 
   toggleSearchModal(show) {

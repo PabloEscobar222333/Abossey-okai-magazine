@@ -1,6 +1,8 @@
 import { Router } from "express";
 import sql from "../db.js";
+import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { generateTempPassword } from "../utils.js";
 
 const router = Router();
 
@@ -23,19 +25,32 @@ router.get("/settings", async (req, res) => {
 });
 
 // ─── PUT /api/admin/settings ────────────────────────────
+// Keys the admin console may write. Public ones are also served by GET /api/settings.
+export const SETTING_KEYS = [
+  "premoderation",
+  "announcement",
+  "vehicle_taxonomy",
+  "part_categories",
+  "accessory_categories",
+  "form_brands",
+];
+
 router.put("/settings", async (req, res) => {
   try {
     const { key, value } = req.body;
 
+    if (!SETTING_KEYS.includes(key)) {
+      return res.status(400).json({ error: `Unknown setting: ${key}` });
+    }
+    if (value === undefined) {
+      return res.status(400).json({ error: "Setting value is required" });
+    }
+
+    // The admin console records a descriptive audit entry for each change itself
     await sql`
       INSERT INTO admin_settings (key, value, updated_at)
       VALUES (${key}, ${JSON.stringify(value)}::jsonb, NOW())
       ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(value)}::jsonb, updated_at = NOW()
-    `;
-
-    await sql`
-      INSERT INTO audit_logs (admin_id, action, target, details)
-      VALUES (${req.user.id}, 'SETTINGS_CHANGE', ${key}, ${JSON.stringify(value)})
     `;
 
     res.json({ message: "Setting updated" });
@@ -118,7 +133,7 @@ router.get("/reports", async (req, res) => {
   try {
     const reports = await sql`
       SELECT rl.*, p.name as product_name, p.brand as product_brand,
-        m.shop_name as merchant_shop_name
+        m.shop_name as merchant_shop_name, m.phone as merchant_phone
       FROM reported_listings rl
       LEFT JOIN products p ON rl.product_id = p.id
       LEFT JOIN merchants m ON p.merchant_id = m.id
@@ -183,6 +198,32 @@ router.put("/products/:id/status", async (req, res) => {
   } catch (err) {
     console.error("Admin product status error:", err);
     res.status(500).json({ error: "Failed to update product status" });
+  }
+});
+
+// ─── POST /api/admin/merchants/:id/reset-password ───────
+// Issue a new temporary password for a merchant's login account
+router.post("/merchants/:id/reset-password", async (req, res) => {
+  try {
+    const merchants = await sql`SELECT id, user_id, shop_name FROM merchants WHERE id = ${req.params.id}`;
+    if (merchants.length === 0 || !merchants[0].user_id) {
+      return res.status(404).json({ error: "Merchant login account not found" });
+    }
+
+    const merchant = merchants[0];
+    const temporaryPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+    await sql`UPDATE users SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${merchant.user_id}`;
+
+    await sql`
+      INSERT INTO audit_logs (admin_id, action, target, details)
+      VALUES (${req.user.id}, 'MERCHANT_PASSWORD_RESET', ${merchant.shop_name}, ${"Temporary password issued"})
+    `;
+
+    res.json({ temporaryPassword });
+  } catch (err) {
+    console.error("Reset merchant password error:", err);
+    res.status(500).json({ error: "Failed to reset password" });
   }
 });
 

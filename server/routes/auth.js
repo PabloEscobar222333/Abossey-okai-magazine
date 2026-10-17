@@ -2,7 +2,8 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { auth as firebaseAuth } from "../firebase-admin.js";
 import sql from "../db.js";
-import { generateToken, requireAuth } from "../middleware/auth.js";
+import { generateToken, requireAuth, requireAdmin } from "../middleware/auth.js";
+import { normalizePhone, generateTempPassword } from "../utils.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -10,10 +11,11 @@ dotenv.config();
 const router = Router();
 
 // ─── POST /api/auth/register ────────────────────────────
-// Register a new user (customer or merchant)
+// Register a new customer account (merchants are onboarded by an admin)
 router.post("/register", async (req, res) => {
   try {
-    const { email, phone, password, full_name, role } = req.body;
+    const { email, password, full_name } = req.body;
+    const phone = normalizePhone(req.body.phone);
 
     if (!password || password.length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters" });
@@ -30,18 +32,17 @@ router.post("/register", async (req, res) => {
       }
     }
     if (phone) {
-      const existing = await sql`SELECT id FROM users WHERE phone = ${phone}`;
+      const existing = await sql`SELECT id FROM users WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${phone.slice(1)}`;
       if (existing.length > 0) {
         return res.status(409).json({ error: "Phone number already registered" });
       }
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const userRole = role === "merchant" ? "merchant" : "customer";
 
     const [user] = await sql`
       INSERT INTO users (email, phone, password_hash, full_name, role)
-      VALUES (${email || null}, ${phone || null}, ${passwordHash}, ${full_name || null}, ${userRole})
+      VALUES (${email || null}, ${phone || null}, ${passwordHash}, ${full_name || null}, 'customer')
       RETURNING id, email, phone, full_name, role, created_at
     `;
 
@@ -68,7 +69,9 @@ router.post("/register", async (req, res) => {
 // Login with email or phone + password
 router.post("/login", async (req, res) => {
   try {
-    const { email, phone, password } = req.body;
+    const { password } = req.body;
+    const email = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+    const phone = normalizePhone(req.body.phone);
 
     if (!password) {
       return res.status(400).json({ error: "Password is required" });
@@ -79,9 +82,11 @@ router.post("/login", async (req, res) => {
 
     let users;
     if (email) {
-      users = await sql`SELECT * FROM users WHERE email = ${email}`;
+      users = await sql`SELECT * FROM users WHERE LOWER(email) = ${email}`;
     } else {
-      users = await sql`SELECT * FROM users WHERE phone = ${phone}`;
+      // Compare digits only so numbers saved before normalization still match
+      const digits = phone.slice(1);
+      users = await sql`SELECT * FROM users WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${digits}`;
     }
 
     if (users.length === 0) {
@@ -89,6 +94,9 @@ router.post("/login", async (req, res) => {
     }
 
     const user = users[0];
+    if (!user.password_hash) {
+      return res.status(401).json({ error: "This account uses Google sign-in. Please use the Google button." });
+    }
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
       return res.status(401).json({ error: "Invalid credentials" });
@@ -154,50 +162,91 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+// ─── POST /api/auth/change-password ─────────────────────
+// Logged-in user replaces their password (e.g. the temporary one from onboarding)
+router.post("/change-password", requireAuth, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!new_password || new_password.length < 8) {
+      return res.status(400).json({ error: "New password must be at least 8 characters" });
+    }
+
+    const users = await sql`SELECT id, password_hash FROM users WHERE id = ${req.user.id}`;
+    if (users.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = users[0];
+    if (user.password_hash) {
+      const valid = current_password && await bcrypt.compare(current_password, user.password_hash);
+      if (!valid) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(new_password, 12);
+    await sql`UPDATE users SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${user.id}`;
+
+    res.json({ message: "Password updated" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(500).json({ error: "Failed to change password" });
+  }
+});
+
 // ─── POST /api/auth/register-merchant ───────────────────
-// Register + create merchant profile in one step (onboarding)
-router.post("/register-merchant", async (req, res) => {
+// Admin onboards a merchant: creates the login account + shop profile in one step.
+// Returns a temporary password the admin passes on to the merchant.
+router.post("/register-merchant", requireAuth, requireAdmin, async (req, res) => {
   try {
     const {
-      email, phone, password, full_name,
+      full_name,
       shop_name, shop_location, shop_coordinates,
       shop_description, shop_specialty
     } = req.body;
+    const email = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+    const phone = normalizePhone(req.body.phone);
 
-    if (!password || password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters" });
-    }
     if (!shop_name) {
       return res.status(400).json({ error: "Shop name is required" });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ error: "Email or phone number is required" });
     }
 
     // Check existing
     if (email) {
-      const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
+      const existing = await sql`SELECT id FROM users WHERE LOWER(email) = ${email}`;
       if (existing.length > 0) {
         return res.status(409).json({ error: "Email already registered" });
       }
     }
+    if (phone) {
+      const existing = await sql`SELECT id FROM users WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${phone.slice(1)}`;
+      if (existing.length > 0) {
+        return res.status(409).json({ error: "Phone number already registered" });
+      }
+    }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const temporaryPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
     // Create user
     const [user] = await sql`
       INSERT INTO users (email, phone, password_hash, full_name, role)
-      VALUES (${email || null}, ${phone || null}, ${passwordHash}, ${full_name || null}, 'merchant')
+      VALUES (${email}, ${phone}, ${passwordHash}, ${full_name || null}, 'merchant')
       RETURNING id, email, phone, full_name, role, created_at
     `;
 
-    // Create merchant profile
+    // Create merchant profile (admin-onboarded dealers are verified by default)
     const since = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
     const [merchant] = await sql`
-      INSERT INTO merchants (user_id, shop_name, phone, email, location, coordinates, description, specialty, since)
-      VALUES (${user.id}, ${shop_name}, ${phone || null}, ${email || null}, ${shop_location || null}, ${shop_coordinates || "5.5565, -0.2282"}, ${shop_description || null}, ${shop_specialty || null}, ${since})
+      INSERT INTO merchants (user_id, shop_name, phone, email, location, coordinates, description, specialty, since, verified)
+      VALUES (${user.id}, ${shop_name}, ${phone}, ${email}, ${shop_location || null}, ${shop_coordinates || "5.5565, -0.2282"}, ${shop_description || null}, ${shop_specialty || null}, ${since}, true)
       RETURNING *
     `;
-
-    const token = generateToken(user);
 
     res.status(201).json({
       user: {
@@ -209,7 +258,7 @@ router.post("/register-merchant", async (req, res) => {
         created_at: user.created_at,
       },
       merchantProfile: merchant,
-      token,
+      temporaryPassword,
     });
   } catch (err) {
     console.error("Register merchant error:", err);
