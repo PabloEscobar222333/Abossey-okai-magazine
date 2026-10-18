@@ -17,3 +17,5 @@ server/service-account.json
 
 # Vite build output (Vercel builds it on deploy)
 dist/
+.vercel
+.env*
