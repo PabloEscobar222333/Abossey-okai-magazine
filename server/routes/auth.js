@@ -1,6 +1,5 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { auth as firebaseAuth } from "../firebase-admin.js";
 import sql from "../db.js";
 import { generateToken, requireAuth, requireAdmin } from "../middleware/auth.js";
 import { normalizePhone, generateTempPassword } from "../utils.js";
@@ -274,6 +273,15 @@ router.post("/google", async (req, res) => {
 
     if (!credential) {
       return res.status(400).json({ error: "Firebase ID token is required" });
+    }
+
+    // Loaded on demand so a Firebase problem can only affect Google sign-in, not the whole API
+    let firebaseAuth;
+    try {
+      ({ auth: firebaseAuth } = await import("../firebase-admin.js"));
+    } catch (loadErr) {
+      console.error("Firebase Admin failed to load:", loadErr);
+      return res.status(503).json({ error: "Google sign-in is temporarily unavailable. Please log in with email or phone." });
     }
 
     // 1. Verify the Firebase ID token cryptographically

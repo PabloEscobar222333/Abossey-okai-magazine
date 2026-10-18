@@ -1,0 +1,12 @@
+# Keep CLI deploys identical to Git deploys: never upload secrets or local builds
+node_modules
+server/node_modules
+dist
+.vercel
+.env
+.env*
+server/.env
+server/.env*
+**/service-account*.json
+.DS_Store
+*.log
