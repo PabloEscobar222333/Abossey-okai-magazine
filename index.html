@@ -1067,41 +1067,13 @@
             
             <div class="merchant-settings-container">
               
-              <!-- 1. Header Card -->
-              <div class="settings-header-card">
-                <div class="settings-header-left">
-                  <button type="button" class="settings-back-btn" onclick="app.switchDashboardTab('inventory')" aria-label="Go Back">
-                    <i class="fa-solid fa-arrow-left"></i>
-                  </button>
-                  <div class="settings-header-text">
-                    <h2>Shop Location & Map Picker</h2>
-                    <p>Pinpoint your exact shop location in Abossey Okai so buyers can get direct turn-by-turn navigation to your stall.</p>
-                  </div>
-                </div>
-                <div class="settings-header-actions">
-                  <button type="button" class="btn btn-primary btn-sm" id="save-location-top-btn" onclick="app.saveMerchantLocation()">
-                    <i class="fa-solid fa-cloud-arrow-up"></i> Save Shop Location
-                  </button>
-                </div>
-              </div>
-
-              <!-- 2. Location Search & Quick-Select Card -->
+              <!-- Location Search -->
               <div class="settings-section-card">
-                <div class="section-card-header">
-                  <div class="section-icon-badge blue-badge">
-                    <i class="fa-solid fa-magnifying-glass-location"></i>
-                  </div>
-                  <div>
-                    <h3>Find & Jump to Area</h3>
-                    <p class="section-desc">Search by neighborhood, street name, or paste raw GPS coordinates (e.g. <code>5.5562, -0.2284</code>).</p>
-                  </div>
-                </div>
-
                 <!-- Search Input with Auto-complete & Clear -->
                 <div class="map-search-bar-wrapper">
                   <div class="map-search-input-box">
                     <i class="fa-solid fa-search map-search-icon"></i>
-                    <input type="text" id="merchant-map-search-input" placeholder="Search area in Accra (e.g. Abossey Okai Central, Zongo Junction) or paste lat, lng..." autocomplete="off">
+                    <input type="text" id="merchant-map-search-input" placeholder="Search area or lat, lng" aria-label="Search for your shop area or paste GPS coordinates" autocomplete="off">
                     <button type="button" class="map-search-clear-btn" id="merchant-map-clear-search" onclick="app.clearMerchantMapSearch()" style="display:none;" title="Clear search">
                       <i class="fa-solid fa-xmark"></i>
                     </button>
@@ -1113,36 +1085,6 @@
                   <div class="map-search-dropdown" id="merchant-map-search-results" style="display: none;"></div>
                 </div>
 
-                <!-- Quick Select Local Chips -->
-                <div class="map-preset-chips-section">
-                  <span class="preset-chips-label"><i class="fa-solid fa-bolt"></i> Quick Jump to Popular Auto Hubs:</span>
-                  <div class="map-preset-chips" id="merchant-preset-chips">
-                    <button type="button" class="map-preset-chip active" data-lat="5.5562" data-lng="-0.2284" onclick="app.jumpMerchantMapPreset(5.5562, -0.2284, 'Abossey Okai Central', this)">
-                      <i class="fa-solid fa-location-crosshairs"></i> Abossey Okai Central
-                    </button>
-                    <button type="button" class="map-preset-chip" data-lat="5.5585" data-lng="-0.2310" onclick="app.jumpMerchantMapPreset(5.5585, -0.2310, 'Zongo Junction', this)">
-                      Zongo Junction
-                    </button>
-                    <button type="button" class="map-preset-chip" data-lat="5.5642" data-lng="-0.2325" onclick="app.jumpMerchantMapPreset(5.5642, -0.2325, 'Kaneshie Market', this)">
-                      Kaneshie Market
-                    </button>
-                    <button type="button" class="map-preset-chip" data-lat="5.5520" data-lng="-0.2210" onclick="app.jumpMerchantMapPreset(5.5520, -0.2210, 'Agbogbloshie Auto Spare Market', this)">
-                      Agbogbloshie
-                    </button>
-                    <button type="button" class="map-preset-chip" data-lat="5.5600" data-lng="-0.2150" onclick="app.jumpMerchantMapPreset(5.5600, -0.2150, 'Odawna / Circle Auto Hub', this)">
-                      Circle / Odawna
-                    </button>
-                    <button type="button" class="map-preset-chip" data-lat="5.5710" data-lng="-0.2400" onclick="app.jumpMerchantMapPreset(5.5710, -0.2400, 'Kokompe Auto Market', this)">
-                      Kokompe Auto
-                    </button>
-                    <button type="button" class="map-preset-chip" data-lat="5.5780" data-lng="-0.2450" onclick="app.jumpMerchantMapPreset(5.5780, -0.2450, 'Darkuman Junction', this)">
-                      Darkuman Junction
-                    </button>
-                    <button type="button" class="map-preset-chip" data-lat="5.6250" data-lng="-0.1050" onclick="app.jumpMerchantMapPreset(5.6250, -0.1050, 'Spintex Auto Hub', this)">
-                      Spintex Road Hub
-                    </button>
-                  </div>
-                </div>
               </div>
 
               <!-- 3. Interactive Leaflet Map Card -->

@@ -5532,13 +5532,17 @@ footer {
   box-shadow: 0 0 0 3px rgba(0, 45, 98, 0.12);
 }
 
-.map-search-icon {
+.map-search-input-box .map-search-icon {
+  /* An earlier .map-search-icon rule positions it absolutely; keep it in the flex row here */
+  position: static;
+  flex-shrink: 0;
   color: #94a3b8;
   font-size: 0.95rem;
 }
 
 .map-search-input-box input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   background: transparent;
