@@ -1064,21 +1064,38 @@ class AbbosseyOkaiApp {
     });
   }
 
+  setMobileMenuOpen(open) {
+    const mainHeader = document.getElementById("main-header");
+    const toggleBtn = document.getElementById("mobile-menu-toggle");
+    if (!mainHeader) return;
+    mainHeader.classList.toggle("menu-open", open);
+    if (toggleBtn) {
+      toggleBtn.setAttribute("aria-expanded", String(open));
+      const icon = toggleBtn.querySelector("i");
+      if (icon) icon.className = open ? "fa-solid fa-xmark" : "fa-solid fa-bars";
+    }
+  }
+
   bindDomElements() {
     // Navigation toggle menu for mobile
     const toggleBtn = document.getElementById("mobile-menu-toggle");
     const mainHeader = document.getElementById("main-header");
+    const setMenuOpen = open => this.setMobileMenuOpen(open);
     if (toggleBtn) {
       toggleBtn.addEventListener("click", () => {
-        mainHeader.classList.toggle("menu-open");
+        setMenuOpen(!mainHeader.classList.contains("menu-open"));
       });
     }
 
-    // Auto-close menu on link click
-    document.querySelectorAll("#main-nav-links a").forEach(link => {
-      link.addEventListener("click", () => {
-        mainHeader.classList.remove("menu-open");
-      });
+    // Auto-close menu on link click, outside tap or Escape
+    document.querySelectorAll("#main-nav-links a, #global-navbar > button:not(#mobile-menu-toggle)").forEach(el => {
+      el.addEventListener("click", () => setMenuOpen(false));
+    });
+    document.addEventListener("click", e => {
+      if (mainHeader.classList.contains("menu-open") && !mainHeader.contains(e.target)) setMenuOpen(false);
+    });
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape") setMenuOpen(false);
     });
 
     // Main search input event listener
@@ -2600,6 +2617,8 @@ class AbbosseyOkaiApp {
 
   switchAppView(view) {
     this.currentView = view;
+    document.body.dataset.view = view;
+    this.setMobileMenuOpen(false);
     const storefront = document.getElementById("storefront-view-panel");
     const dashboard = document.getElementById("merchant-dashboard-panel");
     const adminDashboard = document.getElementById("admin-dashboard-panel");
@@ -4355,7 +4374,7 @@ class AbbosseyOkaiApp {
     const refurbishedOption = document.getElementById('condition-refurbished-option');
 
     if (type === 'parts') {
-      if (partsGroup) partsGroup.style.display = 'block';
+      if (partsGroup) partsGroup.style.display = 'flex';
       if (accGroup) accGroup.style.display = 'none';
       if (refurbishedOption) refurbishedOption.style.display = 'block';
     } else {
@@ -4390,7 +4409,7 @@ class AbbosseyOkaiApp {
     if (checkbox.checked) {
       partsGroup.style.display = "none";
     } else {
-      partsGroup.style.display = "block";
+      partsGroup.style.display = "flex";
     }
   }
 
@@ -5343,7 +5362,8 @@ class AbbosseyOkaiApp {
         topCats.forEach(([cat, views]) => {
           const li = document.createElement("li");
           li.style.display = "flex";
-          li.style.justify = "space-between";
+          li.style.justifyContent = "space-between";
+          li.style.gap = "0.5rem";
           li.style.padding = "2px 0";
           li.innerHTML = `<span>${cat}</span> <strong style="color:var(--text-muted);">${views}</strong>`;
           topCatsContainer.appendChild(li);
@@ -5368,7 +5388,8 @@ class AbbosseyOkaiApp {
         topBrands.forEach(([brand, views]) => {
           const li = document.createElement("li");
           li.style.display = "flex";
-          li.style.justify = "space-between";
+          li.style.justifyContent = "space-between";
+          li.style.gap = "0.5rem";
           li.style.padding = "2px 0";
           li.innerHTML = `<span>${brand}</span> <strong style="color:var(--text-muted);">${views}</strong>`;
           topBrandsContainer.appendChild(li);
