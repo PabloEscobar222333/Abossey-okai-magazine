@@ -101,6 +101,13 @@ const FULL_VEHICLE_TAXONOMY = {
       "A3", "A4", "A5", "A6", "A7", "A8", "Q3", "Q5", "Q7", "Q8", "TT"
     ],
     years: ["2000", "2001", "2002", "2003", "2004", "2005", "2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026"]
+  },
+  Chevrolet: {
+    models: [
+      "Spark", "Aveo", "Sonic", "Cruze", "Malibu", "Impala", "Camaro", "Corvette", "Captiva", "Equinox",
+      "Traverse", "Tahoe", "Suburban", "Trailblazer", "Trax", "Blazer", "Colorado", "Silverado", "Express", "Optra"
+    ],
+    years: ["2000", "2001", "2002", "2003", "2004", "2005", "2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026"]
   }
 };
 
@@ -856,6 +863,10 @@ class AbbosseyOkaiApp {
     if (settings.vehicle_taxonomy && typeof settings.vehicle_taxonomy === "object") {
       Object.keys(VEHICLE_TAXONOMY).forEach(make => delete VEHICLE_TAXONOMY[make]);
       Object.assign(VEHICLE_TAXONOMY, settings.vehicle_taxonomy);
+      // Keep built-in makes added after the admin last saved the taxonomy
+      Object.keys(FULL_VEHICLE_TAXONOMY).forEach(make => {
+        if (!VEHICLE_TAXONOMY[make]) VEHICLE_TAXONOMY[make] = FULL_VEHICLE_TAXONOMY[make];
+      });
     }
     if (Array.isArray(settings.part_categories)) {
       SPARE_PART_CATEGORIES.splice(0, SPARE_PART_CATEGORIES.length, ...settings.part_categories);
@@ -4518,8 +4529,7 @@ class AbbosseyOkaiApp {
       let modelPart = str;
 
       if (typeof VEHICLE_TAXONOMY === "object" && VEHICLE_TAXONOMY) {
-        const brandLower = (brandName || "").toLowerCase();
-        const matchingTaxonomyMake = Object.keys(VEHICLE_TAXONOMY).find(m => m.toLowerCase() === brandLower);
+        const matchingTaxonomyMake = this.findTaxonomyMake(brandName);
 
         if (matchingTaxonomyMake) {
           makePart = matchingTaxonomyMake;
@@ -5171,44 +5181,44 @@ class AbbosseyOkaiApp {
     this.populateModelsDatalist(brandVal);
   }
 
+  // Map a brand name to its VEHICLE_TAXONOMY key, tolerating case/punctuation and
+  // longer brand names (e.g. "Mercedes-Benz" -> "Mercedes", "landrover" -> "Land Rover")
+  findTaxonomyMake(brand) {
+    if (!brand || typeof VEHICLE_TAXONOMY !== "object" || !VEHICLE_TAXONOMY) return null;
+    const normalize = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+    const target = normalize(brand);
+    if (!target) return null;
+    const makes = Object.keys(VEHICLE_TAXONOMY);
+    return makes.find(m => normalize(m) === target)
+      || makes.find(m => normalize(m) && target.startsWith(normalize(m)))
+      || null;
+  }
+
   populateModelsDatalist(selectedBrand = "") {
     const datalist = document.getElementById("form-models-datalist");
     if (!datalist) return;
-    
+
     datalist.innerHTML = "";
-    if (typeof VEHICLE_TAXONOMY !== "object" || !VEHICLE_TAXONOMY) return;
-
-    let matchingMake = null;
-    if (selectedBrand) {
-      const brandLower = selectedBrand.toLowerCase();
-      matchingMake = Object.keys(VEHICLE_TAXONOMY).find(m => m.toLowerCase() === brandLower);
-    }
-
     const modelInput = document.getElementById("form-fitment-make-model");
+    const matchingMake = this.findTaxonomyMake(selectedBrand);
+    const models = matchingMake && Array.isArray(VEHICLE_TAXONOMY[matchingMake]?.models)
+      ? VEHICLE_TAXONOMY[matchingMake].models
+      : [];
 
-    if (matchingMake && VEHICLE_TAXONOMY[matchingMake] && Array.isArray(VEHICLE_TAXONOMY[matchingMake].models)) {
-      const models = VEHICLE_TAXONOMY[matchingMake].models;
-      models.forEach(model => {
-        const opt = document.createElement("option");
-        opt.value = model;
-        datalist.appendChild(opt);
-      });
-      if (modelInput) {
+    // Only suggest models belonging to the selected brand
+    models.forEach(model => {
+      const opt = document.createElement("option");
+      opt.value = model;
+      datalist.appendChild(opt);
+    });
+
+    if (modelInput) {
+      if (models.length) {
         modelInput.placeholder = `e.g. ${models.slice(0, 3).join(", ")}`;
-      }
-    } else {
-      Object.keys(VEHICLE_TAXONOMY).forEach(make => {
-        const taxonomy = VEHICLE_TAXONOMY[make];
-        if (taxonomy && Array.isArray(taxonomy.models)) {
-          taxonomy.models.forEach(model => {
-            const opt = document.createElement("option");
-            opt.value = `${make} ${model}`;
-            datalist.appendChild(opt);
-          });
-        }
-      });
-      if (modelInput) {
-        modelInput.placeholder = "e.g. Civic, CR-V, Corolla";
+      } else if (selectedBrand) {
+        modelInput.placeholder = `Type the ${selectedBrand} model`;
+      } else {
+        modelInput.placeholder = "Select a brand first";
       }
     }
   }
