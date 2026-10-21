@@ -5892,3 +5892,355 @@ footer {
 }
 
 
+/* ==========================================================================
+   RESPONSIVE LAYER — phones (320px+) and tablets (up to 1024px)
+   Loaded last so it settles conflicts between the earlier breakpoint blocks.
+   ========================================================================== */
+
+/* Hamburger toggle (desktop hides it) */
+.mobile-menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--primary-color);
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.mobile-menu-toggle:active {
+  background-color: rgba(15, 76, 129, 0.08);
+}
+
+/* Change Password fields have no icon wrapper; match the other settings inputs */
+.settings-section-card .form-group > input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.settings-section-card .form-group > input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Tall modals scroll inside the overlay instead of being cut off on short screens */
+.auth-overlay,
+.search-modal-overlay {
+  overflow-y: auto;
+}
+
+.auth-overlay .auth-card,
+.search-modal-overlay .search-modal-card {
+  margin: auto 0;
+}
+
+/* ---------- Tablets & phones (≤1024px) ---------- */
+@media (max-width: 1024px) {
+  /* Header: collapse links into the hamburger menu */
+  .navbar {
+    position: relative;
+    padding: 0.65rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .nav-actions {
+    display: none;
+  }
+
+  .mobile-search-toggle {
+    display: inline-flex;
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  .mobile-menu-toggle {
+    display: inline-flex;
+  }
+
+  /* Dashboards don't use the storefront links */
+  body[data-view="dashboard"] .mobile-menu-toggle,
+  body[data-view="admin-dashboard"] .mobile-menu-toggle {
+    display: none;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  header.menu-open .nav-links {
+    display: flex;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0.25rem 1rem 0.75rem;
+    background-color: var(--white);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+    max-height: calc(100vh - 70px);
+    overflow-y: auto;
+  }
+
+  header.menu-open .nav-links a {
+    display: block;
+    padding: 0.9rem 0.25rem;
+    font-size: 1rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  header.menu-open .nav-links li:last-child a {
+    border-bottom: none;
+  }
+
+  header.menu-open .nav-links a.active {
+    font-weight: 700;
+  }
+
+  /* Catalog: let the grid column shrink below its content's natural width */
+  .marketplace-container {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .catalog-section {
+    min-width: 0;
+  }
+
+  .catalog-header {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+  }
+
+  .catalog-stats {
+    white-space: nowrap;
+  }
+
+  .catalog-controls {
+    margin-left: auto;
+  }
+
+  /* Dashboards: compact profile row + swipeable tab pills instead of a full-height sidebar */
+  .dashboard-view,
+  #admin-dashboard-panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    margin: 1rem auto 2rem;
+  }
+
+  .dashboard-sidebar,
+  .dashboard-content-panel {
+    min-width: 0;
+  }
+
+  .dashboard-sidebar {
+    padding: 0.85rem;
+    gap: 0.75rem;
+  }
+
+  .dashboard-profile-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.85rem;
+    row-gap: 0.1rem;
+    align-items: center;
+    justify-items: start;
+    text-align: left;
+    padding-bottom: 0.75rem;
+  }
+
+  .dashboard-avatar-upload {
+    grid-row: 1 / span 2;
+    width: 52px;
+    height: 52px;
+  }
+
+  .dashboard-profile-avatar {
+    width: 52px;
+    height: 52px;
+    font-size: 1.3rem;
+  }
+
+  .avatar-edit-badge {
+    width: 22px;
+    height: 22px;
+    font-size: 0.65rem;
+  }
+
+  .dashboard-shop-name {
+    margin: 0;
+    align-self: end;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-shop-location {
+    align-self: start;
+  }
+
+  .dashboard-menu {
+    flex-direction: row;
+    gap: 0.5rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dashboard-menu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dashboard-menu-item {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 0.55rem 0.9rem;
+    font-size: 0.85rem;
+    gap: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+  }
+
+  .dashboard-menu-item.active {
+    border-color: rgba(15, 76, 129, 0.35);
+  }
+
+  .dashboard-panel-header {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+  }
+
+  /* Inline "input + Add button" rows: let the input shrink so the button stays visible */
+  .dashboard-tab-panel input {
+    min-width: 0;
+  }
+}
+
+/* ---------- Tablets (600–1024px) ---------- */
+@media (min-width: 600px) and (max-width: 1024px) {
+  /* Show the whole photo so the headline sits on the wall, not the car */
+  .hero-section {
+    height: min(56vw, 480px);
+    background-position: center top;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Phones & small tablets (≤768px) ---------- */
+@media (max-width: 768px) {
+  footer {
+    padding: 2.5rem 1.25rem 1.5rem;
+  }
+
+  .footer-grid {
+    flex-direction: column;
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .footer-nav-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+
+  .footer-col {
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .footer-links span {
+    overflow-wrap: anywhere;
+  }
+
+  /* Use the visible viewport so modal footers (Next / Save) stay above the browser toolbar */
+  @supports (height: 100dvh) {
+    .pdp-card,
+    .form-modal-card {
+      max-height: 94dvh;
+    }
+
+    .most-viewed-sheet {
+      max-height: 88dvh;
+    }
+  }
+}
+
+/* ---------- Phones (≤480px) ---------- */
+@media (max-width: 480px) {
+  .catalog-controls {
+    width: 100%;
+  }
+
+  .catalog-controls select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobile-filter-trigger {
+    flex: 0 0 auto;
+  }
+
+  .form-modal-footer .btn {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  /* Admin cards set inline min-widths for desktop wrapping; phones are one column */
+  .dashboard-tab-panel .inventory-card {
+    min-width: 0 !important;
+  }
+}
+
+/* ---------- Very small phones (≤360px) ---------- */
+@media (max-width: 360px) {
+  .navbar {
+    padding: 0.6rem 0.75rem;
+    gap: 0.25rem;
+  }
+
+  .nav-brand {
+    font-size: 0.85rem;
+    max-width: 135px;
+  }
+
+  .nav-brand span {
+    font-size: 0.72rem;
+  }
+
+  #merchant-portal-btn {
+    padding: 0.4rem 0.7rem;
+  }
+
+  .marketplace-container {
+    padding: 0 0.75rem;
+  }
+
+  .product-grid {
+    gap: 0.5rem;
+  }
+}
+
+/* Touch devices: 16px inputs stop iOS Safari from zooming in on focus */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
