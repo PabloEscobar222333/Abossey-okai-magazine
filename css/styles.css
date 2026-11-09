@@ -5835,19 +5835,6 @@ footer {
   margin-bottom: 0.75rem;
 }
 
-.map-helper-banner {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.82rem;
-  color: #0369a1;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  border-radius: 8px;
-  padding: 0.4rem 0.65rem;
-  font-weight: 600;
-}
-
 .map-toolbar-actions {
   display: flex;
   align-items: center;
@@ -6406,7 +6393,7 @@ footer {
 
 /* ==========================================================================
    MERCHANT LOCATIONS & MAP TAB
-   Search → hint → GPS / Google Maps → map → coordinates → capture source → save
+   Search → GPS / Google Maps → map → coordinates → capture source → save
    ========================================================================== */
 .location-tab {
   gap: 1rem;
@@ -6436,26 +6423,6 @@ footer {
   border-radius: 12px;
   padding: 0.6rem 1.1rem;
   font-size: 0.95rem;
-}
-
-.location-tab .map-helper-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  border-radius: 16px;
-  background: #EEF6FF;
-  border: 1px solid #D6E8FF;
-  color: #1D5FB8;
-  font-size: 0.9rem;
-  font-weight: 500;
-  line-height: 1.45;
-}
-
-.location-tab .map-helper-banner i {
-  color: #2E90FA;
-  font-size: 1.15rem;
-  flex-shrink: 0;
 }
 
 .location-tab .map-toolbar-actions {
