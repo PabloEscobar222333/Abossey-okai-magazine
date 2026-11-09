@@ -1034,29 +1034,29 @@
 
               </form>
 
-              <!-- Change Password Card -->
-              <form id="merchant-password-form" onsubmit="app.changeMerchantPassword(event)">
+              <!-- Change PIN Card -->
+              <form id="merchant-pin-form" onsubmit="app.changeMerchantPin(event)">
                 <div class="settings-section-card">
                   <div class="section-card-header">
                     <div class="section-icon-badge blue-badge">
                       <i class="fa-solid fa-key"></i>
                     </div>
-                    <h3>Change Password</h3>
+                    <h3>Change Login PIN</h3>
                   </div>
 
                   <div class="form-row-2col">
                     <div class="form-group">
-                      <label for="settings-current-password">Current Password</label>
-                      <input type="password" id="settings-current-password" autocomplete="current-password" placeholder="Temporary or current password">
+                      <label for="settings-current-pin">Current PIN</label>
+                      <input type="password" id="settings-current-pin" class="pin-input" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="current-password" placeholder="••••" title="Your current 4-digit PIN">
                     </div>
                     <div class="form-group">
-                      <label for="settings-new-password">New Password</label>
-                      <input type="password" id="settings-new-password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
+                      <label for="settings-new-pin">New PIN</label>
+                      <input type="password" id="settings-new-pin" class="pin-input" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="new-password" placeholder="••••" title="Choose a new 4-digit PIN">
                     </div>
                   </div>
 
-                  <button type="submit" class="btn btn-secondary" id="change-password-btn">
-                    <i class="fa-solid fa-key"></i> Update Password
+                  <button type="submit" class="btn btn-secondary" id="change-pin-btn">
+                    <i class="fa-solid fa-key"></i> Update PIN
                   </button>
                 </div>
               </form>
@@ -1729,7 +1729,7 @@
             <h4 class="footer-title">Seller Hub</h4>
             <ul class="footer-links">
               <li><a href="#" onclick="app.openMerchantAuth(true); return false;">Register Seller Stall</a></li>
-              <li><a href="#" onclick="app.toggleMerchantPortal(); return false;">Merchant Portal Login</a></li>
+              <li><a href="#" onclick="app.openMerchantPortal(); return false;">Merchant Portal Login</a></li>
               <li><a href="#">Trading Guidelines</a></li>
               <li><a href="#">Report Scam Listings</a></li>
             </ul>
@@ -2009,7 +2009,7 @@
       <div class="auth-card" id="auth-card-panel">
         
         <div class="auth-header" style="position: relative;">
-          <button class="search-modal-close-btn" onclick="app.closeMerchantAuth()" aria-label="Close modal" style="position: absolute; right: 1rem; top: 1rem;">&times;</button>
+          <button class="search-modal-close-btn" id="auth-close-btn" onclick="app.closeMerchantAuth()" aria-label="Close modal" style="position: absolute; right: 1rem; top: 1rem;">&times;</button>
           <div class="auth-logo"><i class="fa-solid fa-gears"></i> ABBOSSEY OKAI <span>MAGAZINE</span></div>
         </div>
 
@@ -2031,47 +2031,62 @@
 
             <div class="auth-divider">or</div>
 
-            <!-- Option 2: Enter Email -->
-            <form id="google-email-form" onsubmit="app.handleGoogleEmailSubmit(event)" style="margin-bottom: 1rem;">
-              <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label for="auth-google-email-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-envelope"></i> Enter Email Address</label>
-                <input type="email" id="auth-google-email-input" placeholder="e.g. merchant@gmail.com" required autocomplete="username" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
-              </div>
-              <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label for="auth-email-password-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-lock"></i> Password</label>
-                <div style="position: relative;">
-                  <input type="password" id="auth-email-password-input" placeholder="Your password" required autocomplete="current-password" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem; padding-right: 2.5rem;">
-                  <button type="button" onclick="app.togglePasswordVisibility('auth-email-password-input', this)" aria-label="Show or hide password" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted);">
-                    <i class="fa-regular fa-eye-slash"></i>
-                  </button>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary" style="width: 100%;">
-                Log in with Email
-              </button>
-            </form>
-            
-            <div class="auth-divider">or</div>
+            <!-- Option 2 & 3: Email or mobile number (merchants and admins then enter their PIN) -->
+            <button type="button" class="btn auth-option-btn" onclick="app.showAuthView('email')">
+              <i class="fa-solid fa-envelope"></i> Continue with Email
+            </button>
+            <button type="button" class="btn auth-option-btn" onclick="app.showAuthView('phone')">
+              <i class="fa-solid fa-mobile-screen-button"></i> Continue with Mobile Number
+            </button>
+          </div>
 
-            <!-- Option 3: Enter Phone Number -->
-            <form id="merchant-login-form" onsubmit="app.handlePhoneLoginSubmit(event)">
-              <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label for="auth-phone-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-phone"></i> Enter Phone Number</label>
-                <input type="tel" id="auth-phone-input" placeholder="e.g. +233 24 123 4567" required autocomplete="tel" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem;">
+          <!-- VIEW 2: Email or mobile number; merchants and admins then enter their 4-digit PIN -->
+          <div id="auth-view-pin" style="display: none;">
+            <button type="button" class="auth-back-btn" onclick="app.showAuthView('initial')">
+              <i class="fa-solid fa-arrow-left"></i> Other ways to log in
+            </button>
+            <form id="auth-pin-form" onsubmit="app.handlePinLoginSubmit(event)">
+              <div class="form-group" id="auth-email-group">
+                <label for="auth-email-input"><i class="fa-solid fa-envelope"></i> Email Address</label>
+                <input type="email" id="auth-email-input" placeholder="e.g. merchant@gmail.com" required autocomplete="username">
               </div>
-              <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label for="auth-phone-password-input" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-lock"></i> Password</label>
-                <div style="position: relative;">
-                  <input type="password" id="auth-phone-password-input" placeholder="Your password" required autocomplete="current-password" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9rem; padding-right: 2.5rem;">
-                  <button type="button" onclick="app.togglePasswordVisibility('auth-phone-password-input', this)" aria-label="Show or hide password" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted);">
+              <div class="form-group" id="auth-phone-group">
+                <label for="auth-phone-input"><i class="fa-solid fa-phone"></i> Mobile Number</label>
+                <input type="tel" id="auth-phone-input" placeholder="e.g. 024 123 4567" required autocomplete="tel">
+              </div>
+              <button type="button" class="auth-back-btn auth-change-id-btn" id="auth-change-id-btn" onclick="app.showAuthView(app.authLoginMethod)">
+                Not you? Use a different one
+              </button>
+              <div class="form-group" id="auth-pin-group">
+                <label for="auth-pin-input"><i class="fa-solid fa-lock"></i> 4-digit PIN</label>
+                <div class="pin-input-wrapper">
+                  <input type="password" id="auth-pin-input" class="pin-input" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="current-password" placeholder="••••" title="Enter your 4-digit PIN">
+                  <button type="button" class="pin-visibility-btn" onclick="app.togglePasswordVisibility('auth-pin-input', this)" aria-label="Show or hide PIN">
                     <i class="fa-regular fa-eye-slash"></i>
                   </button>
                 </div>
               </div>
-              <button type="submit" class="btn btn-secondary" style="width: 100%;">
-                Log in with Phone
-              </button>
+              <button type="submit" class="btn btn-primary auth-submit-btn" id="auth-pin-submit">Continue</button>
+              <p class="auth-help-text" id="auth-pin-help">New merchant? Use the temporary PIN from the admin. You'll choose your own PIN right after logging in.</p>
             </form>
+          </div>
+
+          <!-- VIEW 3: First login with a temporary PIN — must choose a new one -->
+          <div id="auth-view-set-pin" style="display: none;">
+            <h3 class="auth-view-title"><i class="fa-solid fa-key"></i> Create your PIN</h3>
+            <p class="auth-help-text">You logged in with a temporary PIN. Choose your own 4-digit PIN to continue. You'll use it every time you log in.</p>
+            <form id="auth-set-pin-form" onsubmit="app.handleSetPinSubmit(event)">
+              <div class="form-group">
+                <label for="auth-new-pin-input">New PIN</label>
+                <input type="password" id="auth-new-pin-input" class="pin-input" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="new-password" placeholder="••••" title="Choose a 4-digit PIN">
+              </div>
+              <div class="form-group">
+                <label for="auth-confirm-pin-input">Confirm New PIN</label>
+                <input type="password" id="auth-confirm-pin-input" class="pin-input" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="new-password" placeholder="••••" title="Enter the same 4-digit PIN again">
+              </div>
+              <button type="submit" class="btn btn-primary auth-submit-btn">Save PIN &amp; Continue</button>
+            </form>
+            <button type="button" class="auth-back-btn auth-cancel-btn" onclick="app.cancelPinSetup()">Cancel and log out</button>
           </div>
 
         </div>
@@ -2095,9 +2110,9 @@
           <div style="margin-bottom: 0.5rem;"><strong>Login Email:</strong> <span id="success-shop-email"></span></div>
           <div style="margin-bottom: 0.5rem;"><strong>Contact Phone:</strong> <span id="success-shop-phone"></span></div>
           <div style="margin-bottom: 0.5rem;"><strong>Stall Location:</strong> <span id="success-shop-location"></span></div>
-          <div><strong>Temporary Password:</strong> <span id="success-shop-passcode" style="font-family: monospace; font-weight: bold; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; color: #0369a1; user-select: all;"></span></div>
+          <div><strong>Temporary PIN:</strong> <span id="success-shop-passcode" style="font-family: monospace; font-weight: bold; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; color: #0369a1; user-select: all;"></span></div>
           <div style="margin-top: 0.75rem; font-size: 0.78rem; color: var(--text-muted);">
-            <i class="fa-solid fa-circle-info"></i> Copy this now — it won't be shown again. The merchant logs in with their email or phone and this password, then can change it under Shop Profile.
+            <i class="fa-solid fa-circle-info"></i> Share this now — it won't be shown again. The merchant logs in with their email or mobile number and this PIN, then must choose their own PIN straight away.
           </div>
         </div>
 

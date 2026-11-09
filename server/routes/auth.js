@@ -1,79 +1,96 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import sql from "../db.js";
-import { generateToken, requireAuth, requireAdmin } from "../middleware/auth.js";
-import { normalizePhone, generateTempPassword } from "../utils.js";
+import { generateToken, requireAuth, requirePinChangeAuth, requireAdmin } from "../middleware/auth.js";
+import { normalizePhone, isValidPin, isWeakPin, generateTempPin } from "../utils.js";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const router = Router();
 
-// ─── POST /api/auth/register ────────────────────────────
-// Register a new customer account (merchants are onboarded by an admin)
-router.post("/register", async (req, res) => {
+// A 4-digit PIN has only 10,000 combinations, so lock the account after a few wrong tries.
+// Kept in the database because serverless instances don't share memory.
+const MAX_PIN_ATTEMPTS = 5;
+const PIN_LOCK_MINUTES = 15;
+
+function lockedMessage(lockedUntil) {
+  const minutes = Math.max(1, Math.ceil((new Date(lockedUntil) - Date.now()) / 60000));
+  return `Too many wrong PINs. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    phone: user.phone,
+    full_name: user.full_name,
+    role: user.role,
+    avatar_url: user.avatar_url,
+    created_at: user.created_at,
+    must_change_pin: !!user.must_change_pin,
+  };
+}
+
+async function findMerchantProfile(user) {
+  if (user.role !== "merchant") return null;
+  const merchants = await sql`SELECT * FROM merchants WHERE user_id = ${user.id}`;
+  return merchants[0] || null;
+}
+
+// ─── POST /api/auth/identify ────────────────────────────
+// First step of email / mobile number sign-in. Merchants and admins are asked for their PIN;
+// anyone else is signed straight in as a customer (an account is created the first time).
+router.post("/identify", async (req, res) => {
   try {
-    const { email, password, full_name } = req.body;
-    const phone = normalizePhone(req.body.phone);
+    const email = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+    const phone = email ? null : normalizePhone(req.body.phone);
 
-    if (!password || password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Enter a valid email address" });
     }
-    if (!email && !phone) {
-      return res.status(400).json({ error: "Email or phone number is required" });
-    }
-
-    // Check if user already exists
-    if (email) {
-      const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
-      if (existing.length > 0) {
-        return res.status(409).json({ error: "Email already registered" });
-      }
-    }
-    if (phone) {
-      const existing = await sql`SELECT id FROM users WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${phone.slice(1)}`;
-      if (existing.length > 0) {
-        return res.status(409).json({ error: "Phone number already registered" });
-      }
+    if (!email && (!phone || phone.length < 10)) {
+      return res.status(400).json({ error: "Enter a valid email address or mobile number" });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const users = email
+      ? await sql`SELECT * FROM users WHERE LOWER(email) = ${email}`
+      : await sql`SELECT * FROM users WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${phone.slice(1)}`;
 
-    const [user] = await sql`
-      INSERT INTO users (email, phone, password_hash, full_name, role)
-      VALUES (${email || null}, ${phone || null}, ${passwordHash}, ${full_name || null}, 'customer')
-      RETURNING id, email, phone, full_name, role, created_at
-    `;
+    let user = users[0];
+    if (user && (user.role === "merchant" || user.role === "admin")) {
+      return res.json({ next: "pin" });
+    }
 
-    const token = generateToken(user);
+    if (!user) {
+      [user] = await sql`
+        INSERT INTO users (email, phone, role)
+        VALUES (${email}, ${phone}, 'customer')
+        RETURNING *
+      `;
+    }
 
-    res.status(201).json({
-      user: {
-        id: user.id,
-        email: user.email,
-        phone: user.phone,
-        full_name: user.full_name,
-        role: user.role,
-        created_at: user.created_at,
-      },
-      token,
+    res.json({
+      user: publicUser(user),
+      merchantProfile: null,
+      token: generateToken(user),
     });
   } catch (err) {
-    console.error("Register error:", err);
-    res.status(500).json({ error: "Registration failed" });
+    console.error("Identify error:", err);
+    res.status(500).json({ error: "Login failed" });
   }
 });
 
 // ─── POST /api/auth/login ───────────────────────────────
-// Login with email or phone + password
+// Merchants and admins log in with email or phone + 4-digit PIN (customers don't have one)
 router.post("/login", async (req, res) => {
   try {
-    const { password } = req.body;
+    const pin = req.body.pin == null ? "" : String(req.body.pin);
     const email = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
     const phone = normalizePhone(req.body.phone);
 
-    if (!password) {
-      return res.status(400).json({ error: "Password is required" });
+    if (!isValidPin(pin)) {
+      return res.status(400).json({ error: "Enter your 4-digit PIN" });
     }
     if (!email && !phone) {
       return res.status(400).json({ error: "Email or phone is required" });
@@ -93,35 +110,48 @@ router.post("/login", async (req, res) => {
     }
 
     const user = users[0];
-    if (!user.password_hash) {
-      return res.status(401).json({ error: "This account uses Google sign-in. Please use the Google button." });
+    // PINs are only for merchants and admins; customers sign in through /identify or Google
+    if (user.role === "customer") {
+      return res.status(403).json({ error: "Customer accounts don't need a PIN. Enter your email or mobile number and tap Continue." });
     }
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    if (user.pin_locked_until && new Date(user.pin_locked_until) > new Date()) {
+      return res.status(429).json({ error: lockedMessage(user.pin_locked_until) });
+    }
+    if (!user.pin_hash) {
+      const error = user.google_id
+        ? "This account signs in with Google. Use the Google button, or ask the admin for a PIN."
+        : "No PIN has been set for this account yet. Ask the admin for a temporary PIN.";
+      return res.status(401).json({ error });
     }
 
-    // If merchant, also fetch merchant profile
-    let merchantProfile = null;
-    if (user.role === "merchant") {
-      const merchants = await sql`SELECT * FROM merchants WHERE user_id = ${user.id}`;
-      if (merchants.length > 0) {
-        merchantProfile = merchants[0];
+    const validPin = await bcrypt.compare(pin, user.pin_hash);
+    if (!validPin) {
+      // Count the miss atomically; the last allowed miss starts the lock and resets the count
+      const [after] = await sql`
+        UPDATE users SET
+          failed_pin_attempts = CASE WHEN failed_pin_attempts + 1 >= ${MAX_PIN_ATTEMPTS} THEN 0 ELSE failed_pin_attempts + 1 END,
+          pin_locked_until = CASE WHEN failed_pin_attempts + 1 >= ${MAX_PIN_ATTEMPTS}
+            THEN NOW() + (${PIN_LOCK_MINUTES}::int * INTERVAL '1 minute') ELSE pin_locked_until END
+        WHERE id = ${user.id}
+        RETURNING failed_pin_attempts, pin_locked_until
+      `;
+      if (after.pin_locked_until && new Date(after.pin_locked_until) > new Date()) {
+        return res.status(429).json({ error: lockedMessage(after.pin_locked_until) });
       }
+      const left = MAX_PIN_ATTEMPTS - after.failed_pin_attempts;
+      return res.status(401).json({ error: `Incorrect PIN. ${left} attempt${left === 1 ? "" : "s"} left before the account is locked for ${PIN_LOCK_MINUTES} minutes.` });
     }
 
-    const token = generateToken(user);
+    if (user.failed_pin_attempts || user.pin_locked_until) {
+      await sql`UPDATE users SET failed_pin_attempts = 0, pin_locked_until = NULL WHERE id = ${user.id}`;
+    }
+
+    // A temporary PIN only unlocks the "set a new PIN" step
+    const token = generateToken(user, { pinChangeRequired: !!user.must_change_pin });
 
     res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        phone: user.phone,
-        full_name: user.full_name,
-        role: user.role,
-        created_at: user.created_at,
-      },
-      merchantProfile,
+      user: publicUser(user),
+      merchantProfile: await findMerchantProfile(user),
       token,
     });
   } catch (err) {
@@ -131,11 +161,12 @@ router.post("/login", async (req, res) => {
 });
 
 // ─── GET /api/auth/me ───────────────────────────────────
-// Get current user from JWT token
-router.get("/me", requireAuth, async (req, res) => {
+// Get current user from JWT token (also answers for a temporary-PIN token,
+// so the app can bring back the "set a new PIN" step after a reload)
+router.get("/me", requirePinChangeAuth, async (req, res) => {
   try {
     const users = await sql`
-      SELECT id, email, phone, full_name, role, created_at
+      SELECT id, email, phone, full_name, role, avatar_url, created_at, must_change_pin
       FROM users WHERE id = ${req.user.id}
     `;
 
@@ -144,59 +175,74 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 
     const user = users[0];
-
-    // If merchant, also fetch merchant profile
-    let merchantProfile = null;
-    if (user.role === "merchant") {
-      const merchants = await sql`SELECT * FROM merchants WHERE user_id = ${user.id}`;
-      if (merchants.length > 0) {
-        merchantProfile = merchants[0];
-      }
-    }
-
-    res.json({ user, merchantProfile });
+    res.json({
+      user: { ...publicUser(user), must_change_pin: !!(req.user.pin_change_required && user.must_change_pin) },
+      merchantProfile: await findMerchantProfile(user),
+    });
   } catch (err) {
     console.error("Auth me error:", err);
     res.status(500).json({ error: "Failed to fetch user" });
   }
 });
 
-// ─── POST /api/auth/change-password ─────────────────────
-// Logged-in user replaces their password (e.g. the temporary one from onboarding)
-router.post("/change-password", requireAuth, async (req, res) => {
+// ─── POST /api/auth/change-pin ──────────────────────────
+// Set a new 4-digit PIN. Right after logging in with a temporary PIN the current PIN
+// isn't asked for again; otherwise it must be given. Returns a fresh full-access token.
+router.post("/change-pin", requirePinChangeAuth, async (req, res) => {
   try {
-    const { current_password, new_password } = req.body;
+    const currentPin = req.body.current_pin == null ? "" : String(req.body.current_pin);
+    const newPin = req.body.new_pin == null ? "" : String(req.body.new_pin);
 
-    if (!new_password || new_password.length < 8) {
-      return res.status(400).json({ error: "New password must be at least 8 characters" });
+    if (!isValidPin(newPin)) {
+      return res.status(400).json({ error: "New PIN must be exactly 4 digits" });
+    }
+    if (isWeakPin(newPin)) {
+      return res.status(400).json({ error: "That PIN is too easy to guess. Avoid repeated digits (1111) and runs (1234)." });
     }
 
-    const users = await sql`SELECT id, password_hash FROM users WHERE id = ${req.user.id}`;
+    const users = await sql`SELECT * FROM users WHERE id = ${req.user.id}`;
     if (users.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
     const user = users[0];
-    if (user.password_hash) {
-      const valid = current_password && await bcrypt.compare(current_password, user.password_hash);
+    if (user.role === "customer") {
+      return res.status(403).json({ error: "Customer accounts don't use a PIN." });
+    }
+    const isFirstLoginChange = !!(req.user.pin_change_required && user.must_change_pin);
+    if (user.pin_hash && !isFirstLoginChange) {
+      const valid = isValidPin(currentPin) && await bcrypt.compare(currentPin, user.pin_hash);
       if (!valid) {
-        return res.status(401).json({ error: "Current password is incorrect" });
+        return res.status(401).json({ error: "Current PIN is incorrect" });
       }
     }
+    if (user.pin_hash && await bcrypt.compare(newPin, user.pin_hash)) {
+      return res.status(400).json({ error: "Choose a PIN different from your current one" });
+    }
 
-    const passwordHash = await bcrypt.hash(new_password, 12);
-    await sql`UPDATE users SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${user.id}`;
+    const pinHash = await bcrypt.hash(newPin, 12);
+    const [updated] = await sql`
+      UPDATE users
+      SET pin_hash = ${pinHash}, must_change_pin = FALSE, failed_pin_attempts = 0, pin_locked_until = NULL, updated_at = NOW()
+      WHERE id = ${user.id}
+      RETURNING *
+    `;
 
-    res.json({ message: "Password updated" });
+    res.json({
+      message: "PIN updated",
+      user: publicUser(updated),
+      merchantProfile: await findMerchantProfile(updated),
+      token: generateToken(updated),
+    });
   } catch (err) {
-    console.error("Change password error:", err);
-    res.status(500).json({ error: "Failed to change password" });
+    console.error("Change PIN error:", err);
+    res.status(500).json({ error: "Failed to change PIN" });
   }
 });
 
 // ─── POST /api/auth/register-merchant ───────────────────
 // Admin onboards a merchant: creates the login account + shop profile in one step.
-// Returns a temporary password the admin passes on to the merchant.
+// Returns a temporary 4-digit PIN the admin passes on to the merchant.
 router.post("/register-merchant", requireAuth, requireAdmin, async (req, res) => {
   try {
     const {
@@ -228,13 +274,13 @@ router.post("/register-merchant", requireAuth, requireAdmin, async (req, res) =>
       }
     }
 
-    const temporaryPassword = generateTempPassword();
-    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+    const temporaryPin = generateTempPin();
+    const pinHash = await bcrypt.hash(temporaryPin, 12);
 
-    // Create user
+    // Create user; the merchant must replace the temporary PIN on first login
     const [user] = await sql`
-      INSERT INTO users (email, phone, password_hash, full_name, role)
-      VALUES (${email}, ${phone}, ${passwordHash}, ${full_name || null}, 'merchant')
+      INSERT INTO users (email, phone, pin_hash, must_change_pin, full_name, role)
+      VALUES (${email}, ${phone}, ${pinHash}, TRUE, ${full_name || null}, 'merchant')
       RETURNING id, email, phone, full_name, role, created_at
     `;
 
@@ -257,7 +303,7 @@ router.post("/register-merchant", requireAuth, requireAdmin, async (req, res) =>
         created_at: user.created_at,
       },
       merchantProfile: merchant,
-      temporaryPassword,
+      temporaryPin,
     });
   } catch (err) {
     console.error("Register merchant error:", err);

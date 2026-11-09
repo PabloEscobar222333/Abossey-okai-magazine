@@ -30,6 +30,10 @@ async function migrate() {
       `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS latitude DECIMAL(9,6)`,
       `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS longitude DECIMAL(9,6)`,
       `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS location_data JSONB`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_hash VARCHAR(255)`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_pin BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_pin_attempts INT DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMPTZ`,
     ];
 
     for (const alterStmt of columnMigrations) {

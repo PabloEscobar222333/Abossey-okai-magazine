@@ -939,6 +939,11 @@ class AbbosseyOkaiApp {
         return res.ok ? res.json() : null;
       })
       .then(data => {
+        if (data && data.user && data.user.must_change_pin) {
+          document.getElementById("auth-modal").style.display = "flex";
+          this.showAuthView("set-pin");
+          return;
+        }
         if (data && data.user) {
           if (data.user.role === "admin") {
             this.isAdminLoggedIn = true;
@@ -1086,6 +1091,14 @@ class AbbosseyOkaiApp {
         setMenuOpen(!mainHeader.classList.contains("menu-open"));
       });
     }
+
+    // PIN boxes accept digits only (also strips pasted spaces or dashes)
+    document.querySelectorAll(".pin-input").forEach(input => {
+      input.addEventListener("input", () => {
+        const digits = input.value.replace(/\D/g, "").slice(0, 4);
+        if (digits !== input.value) input.value = digits;
+      });
+    });
 
     // Auto-close menu on link click, outside tap or Escape
     document.querySelectorAll("#main-nav-links a, #global-navbar > button:not(#mobile-menu-toggle)").forEach(el => {
@@ -2610,7 +2623,20 @@ class AbbosseyOkaiApp {
       this.switchAppView(this.currentView === "admin-dashboard" ? "storefront" : "admin-dashboard");
     } else if (this.isMerchantLoggedIn) {
       this.switchAppView(this.currentView === "dashboard" ? "storefront" : "dashboard");
-    } else if (!this.isCustomerLoggedIn) {
+    } else if (this.isCustomerLoggedIn) {
+      this.logoutMerchant();
+    } else {
+      this.openMerchantAuth();
+    }
+  }
+
+  // Footer "Merchant Portal Login": open the dashboard if signed in as merchant/admin, otherwise the login popup
+  openMerchantPortal() {
+    if (this.isAdminLoggedIn) {
+      this.switchAppView("admin-dashboard");
+    } else if (this.isMerchantLoggedIn) {
+      this.switchAppView("dashboard");
+    } else {
       this.openMerchantAuth();
     }
   }
@@ -2666,8 +2692,8 @@ class AbbosseyOkaiApp {
     window.scrollTo(0, 0);
   }
 
-  // Authentication Flow Simulator
-  openMerchantAuth(register = false) {
+  // Login popup: choose Google, email or mobile number; the last two log in with a 4-digit PIN
+  openMerchantAuth() {
     document.getElementById("auth-modal").style.display = "flex";
     this.showAuthView("initial");
   }
@@ -2676,7 +2702,7 @@ class AbbosseyOkaiApp {
     document.getElementById("auth-modal").style.display = "none";
 
     // Reset inputs
-    ["auth-google-email-input", "auth-email-password-input", "auth-phone-input", "auth-phone-password-input"].forEach(id => {
+    ["auth-email-input", "auth-phone-input", "auth-pin-input", "auth-new-pin-input", "auth-confirm-pin-input"].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.value = "";
     });
@@ -2684,22 +2710,50 @@ class AbbosseyOkaiApp {
     this.showAuthView("initial");
   }
 
-  startGoogleSignIn() {
-    const emailInput = document.getElementById("auth-google-email-input");
-    if (emailInput) {
-      emailInput.focus();
-    }
-  }
-
+  // Views: "initial" (choose a method), "email" / "phone" (identifier + PIN), "set-pin" (first login)
   showAuthView(viewName) {
-    const initial = document.getElementById("auth-view-initial");
-    if (initial) initial.style.display = "block";
+    const isPinLogin = viewName === "email" || viewName === "phone";
+    const active = isPinLogin ? "pin" : (viewName === "set-pin" ? "set-pin" : "initial");
+    this.authView = active;
+
+    const panels = { initial: "auth-view-initial", pin: "auth-view-pin", "set-pin": "auth-view-set-pin" };
+    Object.entries(panels).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = key === active ? "block" : "none";
+    });
+
+    // Choosing a new PIN can't be skipped: the only way out is "Cancel and log out"
+    const closeBtn = document.getElementById("auth-close-btn");
+    if (closeBtn) closeBtn.style.display = active === "set-pin" ? "none" : "";
+
+    if (isPinLogin) {
+      this.authLoginMethod = viewName;
+      [["email", "auth-email-group", "auth-email-input"], ["phone", "auth-phone-group", "auth-phone-input"]].forEach(([method, groupId, inputId]) => {
+        const group = document.getElementById(groupId);
+        const input = document.getElementById(inputId);
+        if (group) group.style.display = method === viewName ? "" : "none";
+        // A hidden required input would block the form, so switch it off
+        if (input) input.disabled = method !== viewName;
+      });
+      this.setAuthPinStep(false);
+      const idInput = document.getElementById(viewName === "email" ? "auth-email-input" : "auth-phone-input");
+      if (idInput) { idInput.readOnly = false; idInput.focus(); }
+    } else if (active === "set-pin") {
+      document.getElementById("auth-new-pin-input")?.focus();
+    }
   }
 
   // Route a successful login response (Google, email or phone) to the right dashboard
   async applyLoginResult(data) {
     localStorage.setItem("ao_jwt_token", data.token);
     localStorage.setItem("ao_user_email", data.user.email || data.user.phone || "");
+
+    // Logged in with a temporary PIN: the token only allows choosing a new PIN
+    if (data.user.must_change_pin) {
+      document.getElementById("auth-modal").style.display = "flex";
+      this.showAuthView("set-pin");
+      return;
+    }
 
     if (data.user.role === "admin") {
       this.isAdminLoggedIn = true;
@@ -2719,8 +2773,9 @@ class AbbosseyOkaiApp {
       this.saveMerchantProfileToStorage();
       this.closeMerchantAuth();
       this.switchAppView("dashboard");
+      const shopName = this.merchantProfile.shopName;
       await this.loadBackendData();
-      this.showToast(`Welcome back, ${this.merchantProfile.shopName}!`, "success");
+      this.showToast(`Welcome back, ${shopName}!`, "success");
     } else {
       this.isCustomerLoggedIn = true;
       this.isMerchantLoggedIn = false;
@@ -2729,7 +2784,8 @@ class AbbosseyOkaiApp {
       this.saveMerchantProfileToStorage();
       this.closeMerchantAuth();
       this.switchAppView("storefront");
-      this.showToast(`Welcome, ${data.user.full_name || data.user.email || "there"}! Enjoy browsing.`, "success");
+      const who = data.user.full_name || data.user.email || data.user.phone;
+      this.showToast(who ? `Welcome, ${who}! Enjoy browsing.` : "Welcome! Enjoy browsing.", "success");
     }
 
     this.updatePortalButtonState();
@@ -2774,51 +2830,125 @@ class AbbosseyOkaiApp {
         return;
       }
       console.error("Google auth error:", err);
-      this.showToast(`Google Sign-In failed: ${err.message || err.code || "popup blocked"}. You can also log in with email or phone.`, "warning");
-      const emailInput = document.getElementById("auth-google-email-input");
-      if (emailInput) emailInput.focus();
+      this.showToast(`Google Sign-In failed: ${err.message || err.code || "popup blocked"}. You can also log in with your email or mobile number and PIN.`, "warning");
     }
   }
 
-  // Email + password login (admins, merchants, and customers with a password)
-  async handleGoogleEmailSubmit(event) {
-    event.preventDefault();
-    const email = document.getElementById("auth-google-email-input").value.trim().toLowerCase();
-    const password = document.getElementById("auth-email-password-input").value;
-    await this.submitPasswordLogin(event.target, { email, password });
+  // Email / mobile number form has two steps: the identifier, then (merchants and admins only) the PIN
+  setAuthPinStep(show) {
+    this.authPinStep = show;
+    const pinGroup = document.getElementById("auth-pin-group");
+    const pinInput = document.getElementById("auth-pin-input");
+    if (pinGroup) pinGroup.style.display = show ? "" : "none";
+    if (pinInput) { pinInput.disabled = !show; pinInput.value = ""; }
+    ["auth-change-id-btn", "auth-pin-help"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = show ? "" : "none";
+    });
+    const submitBtn = document.getElementById("auth-pin-submit");
+    if (submitBtn) submitBtn.textContent = show ? "Log in" : "Continue";
   }
 
-  // Phone + password login
-  async handlePhoneLoginSubmit(event) {
+  // Step 1 checks who it is: customers are signed in straight away, merchants and admins get the PIN box.
+  // Step 2 logs merchants and admins in with their PIN.
+  async handlePinLoginSubmit(event) {
     event.preventDefault();
-    const phone = document.getElementById("auth-phone-input").value.trim();
-    const password = document.getElementById("auth-phone-password-input").value;
-    await this.submitPasswordLogin(event.target, { phone, password });
-  }
+    const form = event.target;
+    const pinInput = document.getElementById("auth-pin-input");
+    const idInput = document.getElementById(this.authLoginMethod === "phone" ? "auth-phone-input" : "auth-email-input");
 
-  async submitPasswordLogin(form, credentials) {
-    if (!credentials.password) {
-      this.showToast("Please enter your password.", "error");
-      return;
+    const credentials = {};
+    if (this.authLoginMethod === "phone") {
+      credentials.phone = idInput.value.trim();
+    } else {
+      credentials.email = idInput.value.trim().toLowerCase();
+    }
+
+    if (this.authPinStep) {
+      const pin = pinInput.value.trim();
+      if (!/^\d{4}$/.test(pin)) {
+        this.showToast("Enter your 4-digit PIN.", "error");
+        return;
+      }
+      credentials.pin = pin;
     }
 
     const submitBtn = form.querySelector("button[type=submit]");
     const originalText = submitBtn ? submitBtn.textContent : "";
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Logging in..."; }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = this.authPinStep ? "Logging in..." : "Checking..."; }
 
-    const res = await apiRequest("/api/auth/login", { method: "POST", body: credentials });
+    const res = await apiRequest(this.authPinStep ? "/api/auth/login" : "/api/auth/identify", { method: "POST", body: credentials });
 
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+
+    if (!this.authPinStep && res.ok && res.data.next === "pin") {
+      // Merchant or admin account: keep the identifier and ask for the PIN
+      idInput.readOnly = true;
+      this.setAuthPinStep(true);
+      pinInput.focus();
+      return;
+    }
 
     if (!res.ok || !res.data.token) {
       const message = res.status === 401 && res.error === "Invalid credentials"
         ? "Incorrect login details. Please check and try again."
         : res.error;
       this.showToast(message, "error");
+      if (this.authPinStep) {
+        pinInput.value = "";
+        pinInput.focus();
+      } else {
+        idInput.focus();
+      }
       return;
     }
 
     await this.applyLoginResult(res.data);
+  }
+
+  // First login with a temporary PIN: choose a personal PIN, then continue to the dashboard
+  async handleSetPinSubmit(event) {
+    event.preventDefault();
+    const newPin = document.getElementById("auth-new-pin-input").value.trim();
+    const confirmPin = document.getElementById("auth-confirm-pin-input").value.trim();
+
+    if (!/^\d{4}$/.test(newPin)) {
+      this.showToast("Your new PIN must be exactly 4 digits.", "error");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      this.showToast("The two PINs don't match. Please enter them again.", "error");
+      document.getElementById("auth-confirm-pin-input").value = "";
+      return;
+    }
+
+    const submitBtn = event.target.querySelector("button[type=submit]");
+    const originalText = submitBtn ? submitBtn.textContent : "";
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving..."; }
+
+    const res = await apiRequest("/api/auth/change-pin", { method: "POST", body: { new_pin: newPin } });
+
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+
+    if (res.status === 401) {
+      // The temporary-PIN session expired
+      this.cancelPinSetup();
+      this.showToast("Your session expired. Log in again with the temporary PIN.", "warning");
+      return;
+    }
+    if (!res.ok || !res.data.token) {
+      this.showToast(res.error, "error");
+      return;
+    }
+
+    this.showToast("PIN saved. Use it every time you log in.", "success");
+    await this.applyLoginResult(res.data);
+  }
+
+  cancelPinSetup() {
+    localStorage.removeItem("ao_jwt_token");
+    localStorage.removeItem("ao_user_email");
+    this.closeMerchantAuth();
   }
 
   togglePasswordVisibility(inputId, btn) {
@@ -2853,13 +2983,17 @@ class AbbosseyOkaiApp {
     const btn = document.getElementById("merchant-portal-btn");
     if (!btn) return;
 
+    btn.style.display = "inline-flex";
+
     if (this.isCustomerLoggedIn) {
-      // Regular customer logged in -> Login button DISAPPEARS!
-      btn.style.display = "none";
+      // Customers have no dashboard, so the header button signs them out
+      btn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i><span class="portal-btn-label"> Sign Out</span>';
+      btn.className = "btn btn-secondary";
+      btn.setAttribute("aria-label", "Sign out");
       return;
     }
 
-    btn.style.display = "inline-flex";
+    btn.removeAttribute("aria-label");
 
     if (this.isAdminLoggedIn) {
       if (this.currentView === "admin-dashboard") {
@@ -3922,20 +4056,21 @@ class AbbosseyOkaiApp {
     this.showToast('Shop profile saved!', 'success');
   }
 
-  async changeMerchantPassword(event) {
+  async changeMerchantPin(event) {
     event.preventDefault();
-    const currentInput = document.getElementById("settings-current-password");
-    const newInput = document.getElementById("settings-new-password");
-    const newPassword = newInput.value;
+    const currentInput = document.getElementById("settings-current-pin");
+    const newInput = document.getElementById("settings-new-pin");
+    const currentPin = currentInput.value.trim();
+    const newPin = newInput.value.trim();
 
-    if (newPassword.length < 8) {
-      this.showToast("New password must be at least 8 characters.", "error");
+    if (!/^\d{4}$/.test(currentPin) || !/^\d{4}$/.test(newPin)) {
+      this.showToast("PINs must be exactly 4 digits.", "error");
       return;
     }
 
-    const res = await apiRequest("/api/auth/change-password", {
+    const res = await apiRequest("/api/auth/change-pin", {
       method: "POST",
-      body: { current_password: currentInput.value, new_password: newPassword }
+      body: { current_pin: currentPin, new_pin: newPin }
     });
 
     if (!res.ok) {
@@ -3943,9 +4078,10 @@ class AbbosseyOkaiApp {
       return;
     }
 
+    if (res.data.token) localStorage.setItem("ao_jwt_token", res.data.token);
     currentInput.value = "";
     newInput.value = "";
-    this.showToast("Password updated. Use your new password next time you log in.", "success");
+    this.showToast("PIN updated. Use your new PIN next time you log in.", "success");
   }
 
   // Products belonging to the logged-in merchant
@@ -4770,7 +4906,7 @@ class AbbosseyOkaiApp {
     if (event.target.id === elementId) {
       if (elementId === "pdp-overlay-modal") this.closePdp();
       if (elementId === "product-form-modal") this.closeProductForm();
-      if (elementId === "auth-modal") this.closeMerchantAuth();
+      if (elementId === "auth-modal" && this.authView !== "set-pin") this.closeMerchantAuth();
       if (elementId === "most-viewed-modal") this.closeMostViewedModal();
       if (elementId === "all-inventory-panel") this.closeAllInventory();
     }
@@ -4993,14 +5129,14 @@ class AbbosseyOkaiApp {
   }
 
   // Show login details + a WhatsApp button (a direct click, so popup blockers allow it)
-  showMerchantCredentialsModal({ title, subtitle, shopName, email, phone, location, password, whatsappMessage }) {
+  showMerchantCredentialsModal({ title, subtitle, shopName, email, phone, location, pin, whatsappMessage }) {
     document.getElementById("success-modal-title").textContent = title;
     document.getElementById("success-modal-subtitle").textContent = subtitle;
     document.getElementById("success-shop-name").textContent = shopName || "—";
     document.getElementById("success-shop-email").textContent = email || "—";
     document.getElementById("success-shop-phone").textContent = phone || "—";
     document.getElementById("success-shop-location").textContent = location || "—";
-    document.getElementById("success-shop-passcode").textContent = password;
+    document.getElementById("success-shop-passcode").textContent = pin;
 
     const waBtn = document.getElementById("btn-send-whatsapp-invite");
     if (waBtn) {
@@ -5014,29 +5150,29 @@ class AbbosseyOkaiApp {
     document.getElementById("onboard-success-modal").style.display = "flex";
   }
 
-  async resetMerchantPassword(merchantId) {
+  async resetMerchantPin(merchantId) {
     const merchant = this.findMerchantById(merchantId);
     if (!merchant) return;
-    if (!confirm(`Issue a new temporary password for "${merchant.shopName}"? Their current password will stop working.`)) return;
+    if (!confirm(`Issue a new temporary PIN for "${merchant.shopName}"? Their current PIN will stop working.`)) return;
 
-    const res = await apiRequest(`/api/admin/merchants/${merchant.id}/reset-password`, { method: "POST" });
+    const res = await apiRequest(`/api/admin/merchants/${merchant.id}/reset-pin`, { method: "POST" });
     if (!res.ok) {
-      this.showToast(`Could not reset password: ${res.error}`, "error");
+      this.showToast(`Could not reset PIN: ${res.error}`, "error");
       return;
     }
 
-    const temp = res.data.temporaryPassword;
+    const temp = res.data.temporaryPin;
     this.showMerchantCredentialsModal({
-      title: "Password Reset",
-      subtitle: `A new temporary password was issued for ${merchant.shopName}. Their old password no longer works.`,
+      title: "PIN Reset",
+      subtitle: `A new temporary PIN was issued for ${merchant.shopName}. Their old PIN no longer works.`,
       shopName: merchant.shopName,
       email: merchant.email,
       phone: merchant.phone,
       location: merchant.location,
-      password: temp,
-      whatsappMessage: `Hello! Your ABBOSSEY OKAI MAGAZINE merchant password has been reset.\n\nLogin Email: ${merchant.email || "—"}\nOr Phone: ${merchant.phone || "—"}\nTemporary Password: ${temp}\n\nLog in here and change it under Shop Profile: ${window.location.origin}/`
+      pin: temp,
+      whatsappMessage: `Hello! Your ABBOSSEY OKAI MAGAZINE merchant PIN has been reset.\n\nLogin Email: ${merchant.email || "—"}\nOr Mobile Number: ${merchant.phone || "—"}\nTemporary PIN: ${temp}\n\nLog in here with your email or mobile number and this PIN. You'll be asked to choose your own 4-digit PIN straight away: ${window.location.origin}/`
     });
-    this.showToast(`Temporary password issued for ${merchant.shopName}.`, "success");
+    this.showToast(`Temporary PIN issued for ${merchant.shopName}.`, "success");
   }
 
   logAdminAction(action, target, details) {
@@ -5470,8 +5606,8 @@ class AbbosseyOkaiApp {
           <button class="btn btn-secondary btn-sm" style="color:${isSuspended ? "var(--whatsapp-color)" : "var(--accent-color)"}; border-color:${isSuspended ? "var(--whatsapp-color)" : "var(--accent-color)"}; padding:4px 8px; font-size:0.75rem;" onclick="app.toggleMerchantSuspension(${id})">
             <i class="fa-solid ${isSuspended ? "fa-play" : "fa-pause"}"></i> ${isSuspended ? "Unsuspend" : "Suspend"}
           </button>
-          <button class="btn btn-secondary btn-sm" style="padding:4px 8px; font-size:0.75rem;" onclick="app.resetMerchantPassword(${id})">
-            <i class="fa-solid fa-key"></i> Reset Password
+          <button class="btn btn-secondary btn-sm" style="padding:4px 8px; font-size:0.75rem;" onclick="app.resetMerchantPin(${id})">
+            <i class="fa-solid fa-key"></i> Reset PIN
           </button>
           <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:4px 8px; font-size:0.75rem;" onclick="app.deleteMerchant(${id})">
             <i class="fa-solid fa-trash"></i> Delete
@@ -5529,7 +5665,7 @@ class AbbosseyOkaiApp {
     const originalBtnText = submitBtn ? submitBtn.textContent : "";
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Registering..."; }
 
-    // The backend creates the login account and generates a temporary password
+    // The backend creates the login account and generates a temporary PIN
     const res = await apiRequest("/api/auth/register-merchant", {
       method: "POST",
       body: {
@@ -5551,7 +5687,7 @@ class AbbosseyOkaiApp {
       return;
     }
 
-    const temporaryPassword = res.data.temporaryPassword;
+    const temporaryPin = res.data.temporaryPin;
     const savedPhone = res.data.merchantProfile?.phone || phone;
 
     // Reset form
@@ -5574,8 +5710,8 @@ class AbbosseyOkaiApp {
       email,
       phone: savedPhone,
       location,
-      password: temporaryPassword,
-      whatsappMessage: `Hello! Your shop "${shopName}" is now registered on ABBOSSEY OKAI MAGAZINE.\n\nLogin Email: ${email}\nOr Phone: ${savedPhone}\nTemporary Password: ${temporaryPassword}\nStall Location: ${location}\n\nLog in to your merchant portal here and change your password under Shop Profile: ${window.location.origin}/`
+      pin: temporaryPin,
+      whatsappMessage: `Hello! Your shop "${shopName}" is now registered on ABBOSSEY OKAI MAGAZINE.\n\nLogin Email: ${email}\nOr Mobile Number: ${savedPhone}\nTemporary PIN: ${temporaryPin}\nStall Location: ${location}\n\nLog in to your merchant portal here with your email or mobile number and this PIN. You'll be asked to choose your own 4-digit PIN straight away: ${window.location.origin}/`
     });
     this.showToast(`"${shopName}" registered successfully.`, "success");
 

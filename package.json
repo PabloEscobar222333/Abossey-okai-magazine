@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "server": "node server/index.js",
     "images": "node scripts/optimize-images.js",
-    "set-password": "node server/set-password.js"
+    "set-pin": "node server/set-pin.js"
   },
   "devDependencies": {
     "sharp": "^0.33.5",
