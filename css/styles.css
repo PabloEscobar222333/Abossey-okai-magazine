@@ -45,6 +45,7 @@
 html, body {
   max-width: 100%;
   overflow-x: hidden;
+  overflow-x: clip; /* clips like hidden but keeps position: sticky working */
 }
 
 body {
@@ -3678,6 +3679,7 @@ footer {
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
+    overflow-x: clip; /* clips like hidden but keeps position: sticky working */
     box-sizing: border-box;
   }
 
@@ -6399,5 +6401,408 @@ footer {
   select,
   textarea {
     font-size: 16px !important;
+  }
+}
+
+/* ==========================================================================
+   MERCHANT LOCATIONS & MAP TAB
+   Search → hint → GPS / Google Maps → map → coordinates → capture source → save
+   ========================================================================== */
+.location-tab {
+  gap: 1rem;
+}
+
+.location-search-card {
+  padding: 0.6rem;
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.location-search-card .map-search-input-box {
+  border: none;
+  box-shadow: none;
+  padding: 0.25rem 0.25rem 0.25rem 0.75rem;
+}
+
+.location-search-card .map-search-input-box:focus-within {
+  box-shadow: none;
+}
+
+.location-search-card .map-search-icon {
+  font-size: 1.1rem;
+}
+
+.location-search-card .map-search-action-btn {
+  border-radius: 12px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.95rem;
+}
+
+.location-tab .map-helper-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  background: #EEF6FF;
+  border: 1px solid #D6E8FF;
+  color: #1D5FB8;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.location-tab .map-helper-banner i {
+  color: #2E90FA;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.location-tab .map-toolbar-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.map-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 46px;
+  padding: 0.55rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.map-action-gps {
+  background: #E8F1FD;
+  border: 1px solid #E8F1FD;
+  color: var(--secondary-color);
+}
+
+.map-action-gps:hover {
+  border-color: #BFD7F6;
+}
+
+.map-action-gps:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.map-action-google {
+  background: var(--white);
+  border: 1px solid var(--border-color);
+  color: #475569;
+}
+
+.map-action-google:hover {
+  border-color: #94A3B8;
+}
+
+.map-action-btn i,
+.map-action-btn svg {
+  flex-shrink: 0;
+}
+
+.location-tab .merchant-map-wrapper {
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+/* Re-centre control added inside the Google map (bottom-right) */
+.map-recenter-btn {
+  width: 44px;
+  height: 44px;
+  margin: 0 12px 16px 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--white);
+  color: #334155;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+  cursor: pointer;
+}
+
+/* Coordinates and capture-source cards */
+.location-info-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--white);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+.location-info-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #E8F1FD;
+  color: #1D6FE0;
+  font-size: 1.2rem;
+}
+
+.location-info-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.location-info-card .meta-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.location-info-card .meta-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--secondary-color);
+}
+
+.location-info-card .coords-mono {
+  font-family: var(--font-family);
+  font-variant-numeric: tabular-nums;
+}
+
+.location-copy-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: #1D6FE0;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.location-copy-btn:hover {
+  background: #F1F5F9;
+}
+
+.location-source-card {
+  display: block;
+  padding: 0;
+}
+
+.location-source-card summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.location-source-card summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Capture source reads as plain bold text here, not a pill */
+.location-source-card summary .badge-source {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  color: #1D6FE0;
+}
+
+.location-source-card summary .badge-gps {
+  color: #15803D;
+}
+
+.location-source-card summary .badge-search {
+  color: #B45309;
+}
+
+.location-source-chevron {
+  color: #1D6FE0;
+  transition: transform var(--transition-fast);
+}
+
+.location-source-card[open] .location-source-chevron {
+  transform: rotate(180deg);
+}
+
+.location-source-details {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 1rem 1rem calc(1rem + 48px + 1rem);
+}
+
+.location-source-details > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.location-source-details .meta-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Stall number + landmark side by side; one column on phones */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.section-icon-badge {
+  flex-shrink: 0;
+}
+
+.location-save-bar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.location-save-bar .btn {
+  min-height: 48px;
+  padding-left: 1.75rem;
+  padding-right: 1.75rem;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  gap: 0.6rem;
+}
+
+/* Merchant dashboard ☰ (phones/tablets only) */
+.dashboard-menu-toggle {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  /* Top row: ☰ | logo | shop name + location */
+  #merchant-sidebar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1rem;
+    padding: 0.25rem 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+
+  .dashboard-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border: none;
+    border-radius: 16px;
+    background: #EEF2F8;
+    color: var(--secondary-color);
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+
+  #merchant-sidebar .dashboard-profile-card {
+    column-gap: 1.1rem;
+    row-gap: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  #merchant-sidebar .dashboard-avatar-upload,
+  #merchant-sidebar .dashboard-profile-avatar {
+    width: 58px;
+    height: 58px;
+  }
+
+  #merchant-sidebar .dashboard-shop-name,
+  #merchant-sidebar .dashboard-shop-location {
+    padding-left: 1.1rem;
+    border-left: 1px solid var(--border-color);
+  }
+
+  #merchant-sidebar .dashboard-shop-name {
+    padding-bottom: 0.2rem;
+    font-size: 1.1rem;
+  }
+
+  #merchant-sidebar .dashboard-shop-location {
+    font-size: 0.85rem;
+  }
+
+  /* Menu stays closed until ☰ is tapped */
+  #merchant-sidebar .dashboard-menu {
+    display: none;
+  }
+
+  #merchant-sidebar.menu-open .dashboard-menu {
+    display: flex;
+    grid-column: 1 / -1;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin-top: 0.75rem;
+    padding: 0.4rem;
+    overflow: visible;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  }
+
+  #merchant-sidebar.menu-open .dashboard-menu-item {
+    border: none;
+    border-radius: 10px;
+    padding: 0.8rem 0.9rem;
+    font-size: 0.95rem;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 768px) {
+  .merchant-map-wrapper .merchant-leaflet-map {
+    height: 340px;
+  }
+
+  /* Save Location stays pinned to the bottom of the screen while scrolling the tab */
+  .location-save-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    margin: 0 -0.25rem;
+    padding: 0.75rem 0.25rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, var(--bg-color) 75%, rgba(248, 250, 252, 0));
+  }
+
+  .location-save-bar .btn {
+    width: 100%;
+    min-height: 54px;
+    font-size: 1.05rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .map-action-btn {
+    font-size: 0.78rem;
+    padding: 0.5rem 0.6rem;
   }
 }
