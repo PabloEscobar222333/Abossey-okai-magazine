@@ -1159,7 +1159,7 @@
                 </div>
               </details>
 
-              <!-- 7. Shop Stall, Landmarks & Directions Preview Card -->
+              <!-- 7. Shop stall number and nearby landmark -->
               <div class="settings-section-card">
                 <div class="section-card-header">
                   <div class="section-icon-badge blue-badge">
@@ -1171,33 +1171,14 @@
                   </div>
                 </div>
 
-                <div class="form-grid-2">
+                <div class="form-grid-2 location-guide-fields">
                   <div class="form-group">
-                    <label for="merchant-stall-number">Stall / Store / Shop Number</label>
+                    <label for="merchant-stall-number"><i class="fa-solid fa-location-dot"></i> Stall / Store / Shop Number</label>
                     <input type="text" id="merchant-stall-number" placeholder="e.g. Stall C-12, Block 4" oninput="app.onLocationDetailChange()">
                   </div>
                   <div class="form-group">
-                    <label for="merchant-landmarks">Nearby Prominent Landmark</label>
+                    <label for="merchant-landmarks"><i class="fa-solid fa-star"></i> Nearby Prominent Landmark</label>
                     <input type="text" id="merchant-landmarks" placeholder="e.g. Opposite Central Mosque, next to Total Filling Station" oninput="app.onLocationDetailChange()">
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label for="merchant-custom-location-text">Customer-Facing Location Summary</label>
-                  <input type="text" id="merchant-custom-location-text" placeholder="e.g. Stall C12, Abossey Okai Central (near Total Station)" oninput="app.onLocationDetailChange()">
-                </div>
-
-                <!-- Customer Directions Deep Link Preview -->
-                <div class="directions-preview-box">
-                  <h4><i class="fa-solid fa-diamond-turn-right"></i> Customer Deep Link Preview</h4>
-                  <p>When buyers click "Get Directions" on your products, they will open these native navigation links:</p>
-                  <div class="directions-button-row">
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-google" id="preview-google-directions-btn">
-                      <i class="fa-brands fa-google"></i> Open in Google Maps
-                    </a>
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-apple" id="preview-apple-directions-btn">
-                      <i class="fa-brands fa-apple"></i> Open in Apple Maps
-                    </a>
                   </div>
                 </div>
               </div>
