@@ -26,11 +26,12 @@ export function loadGoogleMaps() {
     window[callbackName] = async () => {
       delete window[callbackName];
       try {
-        const [{ Map }, { AdvancedMarkerElement }] = await Promise.all([
+        const [{ Map, MapTypeControlStyle }, { AdvancedMarkerElement }, { ControlPosition }] = await Promise.all([
           google.maps.importLibrary("maps"),
           google.maps.importLibrary("marker"),
+          google.maps.importLibrary("core"),
         ]);
-        resolve({ Map, AdvancedMarkerElement });
+        resolve({ Map, AdvancedMarkerElement, ControlPosition, MapTypeControlStyle });
       } catch (err) {
         reject(err);
       }
@@ -50,10 +51,14 @@ export function loadGoogleMaps() {
 }
 
 // Creates a Google Map centred on [lat, lng] with one pin.
-// options: { zoom, color, draggable, onMove(lat, lng), gestureHandling }
+// options: { zoom, color, draggable, onMove(lat, lng), gestureHandling,
+//            mapTypeToggle (Map / Satellite bar, top-left), recenterButton (bottom-right, pans back to the pin) }
 export async function createPinMap(el, lat, lng, options = {}) {
-  const { Map, AdvancedMarkerElement } = await loadGoogleMaps();
-  const { zoom = 16, color = "#002d62", draggable = false, onMove = null, gestureHandling = "auto" } = options;
+  const { Map, AdvancedMarkerElement, ControlPosition, MapTypeControlStyle } = await loadGoogleMaps();
+  const {
+    zoom = 16, color = "#002d62", draggable = false, onMove = null, gestureHandling = "auto",
+    mapTypeToggle = false, recenterButton = false,
+  } = options;
 
   const map = new Map(el, {
     center: { lat, lng },
@@ -62,6 +67,13 @@ export async function createPinMap(el, lat, lng, options = {}) {
     streetViewControl: false,
     clickableIcons: false,
     gestureHandling,
+    fullscreenControl: true,
+    mapTypeControl: mapTypeToggle,
+    mapTypeControlOptions: {
+      style: MapTypeControlStyle.HORIZONTAL_BAR,
+      position: ControlPosition.TOP_LEFT,
+      mapTypeIds: ["roadmap", "satellite"],
+    },
   });
 
   const pin = document.createElement("div");
@@ -73,6 +85,17 @@ export async function createPinMap(el, lat, lng, options = {}) {
     content: pin,
     gmpDraggable: draggable,
   });
+
+  if (recenterButton) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "map-recenter-btn";
+    btn.title = "Centre the map on the pin";
+    btn.setAttribute("aria-label", "Centre the map on the pin");
+    btn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>';
+    btn.addEventListener("click", () => map.panTo(getMarkerLatLng(marker)));
+    map.controls[ControlPosition.RIGHT_BOTTOM].push(btn);
+  }
 
   if (onMove) {
     marker.addEventListener("gmp-dragend", () => {

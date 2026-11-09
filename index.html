@@ -814,6 +814,10 @@
         
         <!-- Dashboard Sidebar -->
         <aside class="dashboard-sidebar" id="merchant-sidebar">
+
+          <button type="button" class="dashboard-menu-toggle" id="merchant-menu-toggle" onclick="app.toggleMerchantMenu()" aria-label="Dashboard menu" aria-expanded="false" aria-controls="merchant-dashboard-menu">
+            <i class="fa-solid fa-bars"></i>
+          </button>
           
           <div class="dashboard-profile-card">
             <div class="dashboard-avatar-upload">
@@ -827,7 +831,7 @@
             <span class="dashboard-shop-location" id="merchant-display-location"><i class="fa-solid fa-location-dot"></i> Stall C12, Abossey Okai</span>
           </div>
 
-          <ul class="dashboard-menu">
+          <ul class="dashboard-menu" id="merchant-dashboard-menu">
             <li class="dashboard-menu-item active" id="db-menu-inventory" onclick="app.switchDashboardTab('inventory')">
               <i class="fa-solid fa-boxes-stacked"></i> Manage Inventory
             </li>
@@ -1068,11 +1072,10 @@
           <!-- TAB 3: Locations & Map Picker -->
           <div class="dashboard-tab-panel" id="db-panel-locations" style="display: none;">
             
-            <div class="merchant-settings-container">
+            <div class="merchant-settings-container location-tab">
               
-              <!-- Location Search -->
-              <div class="settings-section-card">
-                <!-- Search Input with Auto-complete & Clear -->
+              <!-- 1. Location search -->
+              <div class="settings-section-card location-search-card">
                 <div class="map-search-bar-wrapper">
                   <div class="map-search-input-box">
                     <i class="fa-solid fa-search map-search-icon"></i>
@@ -1087,59 +1090,76 @@
                   <!-- Geocoding Autocomplete Dropdown -->
                   <div class="map-search-dropdown" id="merchant-map-search-results" style="display: none;"></div>
                 </div>
-
               </div>
 
-              <!-- 3. Interactive Leaflet Map Card -->
-              <div class="settings-section-card">
-                <div class="map-container-header">
-                  <div class="map-helper-banner">
-                    <i class="fa-solid fa-hand-pointer"></i>
-                    <span>Tap anywhere on the map or drag the blue pin to set your exact shop location.</span>
-                  </div>
-                  <div class="map-toolbar-actions">
-                    <button type="button" class="btn btn-sm btn-outline" id="merchant-auto-gps-btn" onclick="app.detectMerchantDeviceLocation()">
-                      <i class="fa-solid fa-crosshairs"></i> Auto-Detect My Location (GPS)
-                    </button>
-                    <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-ghost escape-hatch-btn" id="merchant-google-maps-escape-hatch">
-                      <i class="fa-brands fa-google"></i> Open in Google Maps
-                    </a>
-                  </div>
-                </div>
+              <!-- 2. How to set the pin -->
+              <div class="map-helper-banner">
+                <i class="fa-solid fa-location-dot"></i>
+                <span>Tap anywhere on the map or drag the blue pin to set your exact shop location.</span>
+              </div>
 
-                <!-- Live Leaflet Map Container -->
-                <div class="merchant-map-wrapper">
-                  <div id="merchant-interactive-map" class="merchant-leaflet-map"></div>
-                  
-                  <!-- GPS Accuracy Alert (shown when GPS accuracy > 100m or source is GPS) -->
-                  <div class="map-accuracy-notice" id="merchant-map-accuracy-notice" style="display:none;">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span id="merchant-map-accuracy-text">GPS accuracy is approximate. Please manually drag the pin on the map to confirm your precise shop position.</span>
-                  </div>
-                </div>
+              <!-- 3. GPS + Google Maps -->
+              <div class="map-toolbar-actions">
+                <button type="button" class="map-action-btn map-action-gps" id="merchant-auto-gps-btn" onclick="app.detectMerchantDeviceLocation()">
+                  <i class="fa-solid fa-crosshairs"></i> Auto-Detect My Location (GPS)
+                </button>
+                <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" class="map-action-btn map-action-google" id="merchant-google-maps-escape-hatch">
+                  <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
+                    <path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+                    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.4-1.57-5.12-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z"/>
+                    <path fill="#FBBC05" d="M3.88 10.78c-.18-.53-.28-1.09-.28-1.78s.1-1.25.28-1.78L.97 4.96C.35 6.19 0 7.56 0 9s.35 2.81.97 4.04l2.91-2.26z"/>
+                    <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.45 2.02.97 4.96l2.91 2.26C4.6 5.05 6.62 3.58 9 3.58z"/>
+                  </svg>
+                  Open in Google Maps
+                </a>
+              </div>
 
-                <!-- 4. Location Metadata & Transparency Details -->
-                <div class="location-metadata-grid">
-                  <div class="meta-field-card">
-                    <span class="meta-label">Selected Coordinates</span>
-                    <span class="meta-value coords-mono" id="merchant-coords-display">5.556200, -0.228400</span>
-                  </div>
-                  <div class="meta-field-card">
+              <!-- 4. Interactive map (Map/Satellite, full screen and re-centre controls are added by maps.js) -->
+              <div class="merchant-map-wrapper">
+                <div id="merchant-interactive-map" class="merchant-leaflet-map"></div>
+                
+                <!-- GPS Accuracy Alert (shown when GPS accuracy > 100m or source is GPS) -->
+                <div class="map-accuracy-notice" id="merchant-map-accuracy-notice" style="display:none;">
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                  <span id="merchant-map-accuracy-text">GPS accuracy is approximate. Please manually drag the pin on the map to confirm your precise shop position.</span>
+                </div>
+              </div>
+
+              <!-- 5. Selected coordinates -->
+              <div class="location-info-card">
+                <span class="location-info-icon"><i class="fa-solid fa-location-dot"></i></span>
+                <div class="location-info-text">
+                  <span class="meta-label">Selected Coordinates</span>
+                  <span class="meta-value coords-mono" id="merchant-coords-display">5.556200, -0.228400</span>
+                </div>
+                <button type="button" class="location-copy-btn" onclick="app.copyMerchantCoordinates()" aria-label="Copy coordinates" title="Copy coordinates">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </div>
+
+              <!-- 6. Capture source (expand for accuracy and address) -->
+              <details class="location-info-card location-source-card">
+                <summary>
+                  <span class="location-info-icon"><i class="fa-solid fa-camera"></i></span>
+                  <div class="location-info-text">
                     <span class="meta-label">Capture Source</span>
                     <span class="meta-value" id="merchant-source-display"><span class="badge-source badge-manual">Manual Pin</span></span>
                   </div>
-                  <div class="meta-field-card">
+                  <i class="fa-solid fa-chevron-down location-source-chevron" aria-hidden="true"></i>
+                </summary>
+                <div class="location-source-details">
+                  <div>
                     <span class="meta-label">GPS Accuracy</span>
                     <span class="meta-value" id="merchant-accuracy-display">±15 m (High Precision)</span>
                   </div>
-                  <div class="meta-field-card">
+                  <div>
                     <span class="meta-label">Formatted Address</span>
                     <span class="meta-value" id="merchant-address-display">Abossey Okai, Accra, Greater Accra, Ghana</span>
                   </div>
                 </div>
-              </div>
+              </details>
 
-              <!-- 5. Shop Stall, Landmarks & Directions Preview Card -->
+              <!-- 7. Shop Stall, Landmarks & Directions Preview Card -->
               <div class="settings-section-card">
                 <div class="section-card-header">
                   <div class="section-icon-badge blue-badge">
@@ -1180,13 +1200,13 @@
                     </a>
                   </div>
                 </div>
+              </div>
 
-                <!-- Save Action Footer -->
-                <div class="location-save-footer">
-                  <button type="button" class="btn btn-primary" id="save-location-bottom-btn" onclick="app.saveMerchantLocation()">
-                    <i class="fa-solid fa-check"></i> Save & Publish Shop Location
-                  </button>
-                </div>
+              <!-- 8. Save (stays pinned to the bottom of the screen on phones) -->
+              <div class="location-save-bar">
+                <button type="button" class="btn btn-primary" id="save-location-bottom-btn" onclick="app.saveMerchantLocation()">
+                  <i class="fa-solid fa-location-dot"></i> Save Location
+                </button>
               </div>
 
             </div>

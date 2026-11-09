@@ -3019,7 +3019,22 @@ class AbbosseyOkaiApp {
   }
 
   // Dashboard Navigation Tabs Switcher
+  // Phones/tablets: the ☰ button next to the shop name opens the dashboard menu
+  toggleMerchantMenu(open) {
+    const sidebar = document.getElementById("merchant-sidebar");
+    const toggle = document.getElementById("merchant-menu-toggle");
+    if (!sidebar) return;
+    const show = typeof open === "boolean" ? open : !sidebar.classList.contains("menu-open");
+    sidebar.classList.toggle("menu-open", show);
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", String(show));
+      const icon = toggle.querySelector("i");
+      if (icon) icon.className = show ? "fa-solid fa-xmark" : "fa-solid fa-bars";
+    }
+  }
+
   switchDashboardTab(tab) {
+    this.toggleMerchantMenu(false);
     document.querySelectorAll(".dashboard-menu-item").forEach(el => el.classList.remove("active"));
     document.querySelectorAll(".dashboard-tab-panel").forEach(el => el.style.display = "none");
 
@@ -3122,6 +3137,17 @@ class AbbosseyOkaiApp {
     setTimeout(() => this.initMerchantLocationMap(), 150);
   }
 
+  async copyMerchantCoordinates() {
+    const text = document.getElementById("merchant-coords-display")?.textContent.trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      this.showToast(`Coordinates copied: ${text}`, "success");
+    } catch (err) {
+      this.showToast("Could not copy. Press and hold the coordinates to copy them instead.", "warning");
+    }
+  }
+
   async initMerchantLocationMap() {
     const mapEl = document.getElementById("merchant-interactive-map");
     if (!mapEl) return;
@@ -3142,6 +3168,8 @@ class AbbosseyOkaiApp {
         zoom: 16,
         color: "#002d62",
         draggable: true,
+        mapTypeToggle: true,
+        recenterButton: true,
         onMove: (newLat, newLng) => this.updateMerchantMapLocation(newLat, newLng, "manual_pin"),
       });
 
@@ -3563,7 +3591,7 @@ class AbbosseyOkaiApp {
       this.showToast(`Shop location not saved: ${message}`, "error");
     } finally {
       if (topBtn) { topBtn.disabled = false; topBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save Shop Location'; }
-      if (btmBtn) { btmBtn.disabled = false; btmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Save & Publish Shop Location'; }
+      if (btmBtn) { btmBtn.disabled = false; btmBtn.innerHTML = '<i class="fa-solid fa-location-dot"></i> Save Location'; }
     }
   }
 
