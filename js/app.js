@@ -3106,11 +3106,9 @@ class AbbosseyOkaiApp {
     // Populate inputs
     const stallInput = document.getElementById("merchant-stall-number");
     const landmarkInput = document.getElementById("merchant-landmarks");
-    const customTextInput = document.getElementById("merchant-custom-location-text");
 
     if (stallInput) stallInput.value = stallNumber;
     if (landmarkInput) landmarkInput.value = landmarks;
-    if (customTextInput) customTextInput.value = customText;
 
     // Populate meta badges
     const coordsDisplay = document.getElementById("merchant-coords-display");
@@ -3133,7 +3131,6 @@ class AbbosseyOkaiApp {
       escapeHatch.href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`;
     }
 
-    this.updateDirectionsDeepLinkPreview(lat, lng);
     setTimeout(() => this.initMerchantLocationMap(), 150);
   }
 
@@ -3229,8 +3226,6 @@ class AbbosseyOkaiApp {
       escapeHatch.href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`;
     }
 
-    this.updateDirectionsDeepLinkPreview(lat, lng);
-
     // Reverse Geocoding with Nominatim (rate limited & debounced)
     if (this._reverseGeocodeTimer) clearTimeout(this._reverseGeocodeTimer);
     this._reverseGeocodeTimer = setTimeout(async () => {
@@ -3245,12 +3240,11 @@ class AbbosseyOkaiApp {
             const addressDisplay = document.getElementById("merchant-address-display");
             if (addressDisplay) addressDisplay.textContent = data.display_name;
 
-            const customTextInput = document.getElementById("merchant-custom-location-text");
-            if (customTextInput && !customTextInput.value.trim()) {
+            // The shop's customer-facing location text is kept; only fill it in when there is none
+            if (!this.activeMerchantLocation.custom_location_text?.trim()) {
               const road = data.address?.road || data.address?.suburb || "Abossey Okai";
               const city = data.address?.city || data.address?.town || "Accra";
-              customTextInput.value = `${road}, ${city}`;
-              this.activeMerchantLocation.custom_location_text = customTextInput.value;
+              this.activeMerchantLocation.custom_location_text = `${road}, ${city}`;
             }
           }
         }
@@ -3482,22 +3476,11 @@ class AbbosseyOkaiApp {
   onLocationDetailChange() {
     const stall = document.getElementById("merchant-stall-number")?.value.trim();
     const landmarks = document.getElementById("merchant-landmarks")?.value.trim();
-    const customText = document.getElementById("merchant-custom-location-text")?.value.trim();
 
     if (this.activeMerchantLocation) {
       this.activeMerchantLocation.stall_number = stall || null;
       this.activeMerchantLocation.landmarks = landmarks || null;
-      this.activeMerchantLocation.custom_location_text = customText || null;
     }
-  }
-
-  updateDirectionsDeepLinkPreview(lat, lng) {
-    const googleBtn = document.getElementById("preview-google-directions-btn");
-    const appleBtn = document.getElementById("preview-apple-directions-btn");
-    const shopName = this.merchantProfile?.shopName || "Abossey Okai Merchant";
-
-    if (googleBtn) googleBtn.href = this.getGoogleDirectionsUrl(lat, lng);
-    if (appleBtn) appleBtn.href = this.getAppleDirectionsUrl(lat, lng);
   }
 
   // Directions links: no origin is given, so the maps app starts from the customer's current location
@@ -3529,7 +3512,8 @@ class AbbosseyOkaiApp {
 
     const stall = document.getElementById("merchant-stall-number")?.value.trim();
     const landmarks = document.getElementById("merchant-landmarks")?.value.trim();
-    const customText = document.getElementById("merchant-custom-location-text")?.value.trim();
+    // Customer-facing location text isn't edited on this tab; keep the shop's existing one
+    const customText = (loc.custom_location_text || "").trim();
 
     const payload = {
       latitude: loc.latitude,
