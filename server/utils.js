@@ -13,16 +13,25 @@ export function normalizePhone(phone) {
   return "+" + digits;
 }
 
-// Readable temporary password, e.g. "ao-7fk2-m9qd"
-export function generateTempPassword() {
-  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
-  const bytes = crypto.randomBytes(8);
-  let out = "";
-  for (let i = 0; i < 8; i++) {
-    out += alphabet[bytes[i] % alphabet.length];
-    if (i === 3) out += "-";
-  }
-  return `ao-${out}`;
+// Login PINs are exactly 4 digits
+export function isValidPin(pin) {
+  return typeof pin === "string" && /^\d{4}$/.test(pin);
+}
+
+// Easily guessed PINs: one repeated digit (1111) or a straight run (1234, 9876)
+export function isWeakPin(pin) {
+  if (/^(\d)\1{3}$/.test(pin)) return true;
+  const steps = [1, 2, 3].map(i => Number(pin[i]) - Number(pin[i - 1]));
+  return steps.every(s => s === 1) || steps.every(s => s === -1);
+}
+
+// Random temporary PIN the admin passes on to a merchant, e.g. "4827"
+export function generateTempPin() {
+  let pin;
+  do {
+    pin = String(crypto.randomInt(0, 10000)).padStart(4, "0");
+  } while (isWeakPin(pin));
+  return pin;
 }
 
 // SQL expression that turns stored base64 data-URL images into small URLs served by

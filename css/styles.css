@@ -3037,6 +3037,158 @@ table.inventory-table tr:last-child td {
   border-bottom: 1px solid var(--border-color);
 }
 
+/* Login method buttons (email / mobile number) */
+.auth-option-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--white);
+  color: var(--secondary-color);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.auth-option-btn:last-child {
+  margin-bottom: 0;
+}
+
+.auth-option-btn:hover {
+  border-color: var(--primary-color);
+  background-color: rgba(15, 76, 129, 0.04);
+}
+
+.auth-option-btn i {
+  color: var(--primary-color);
+}
+
+.auth-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-back-btn:hover {
+  color: var(--primary-color);
+}
+
+.auth-cancel-btn {
+  display: flex;
+  margin: 1rem auto 0;
+}
+
+.auth-view-title {
+  font-size: 1.15rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auth-view-title i {
+  color: var(--accent-color);
+}
+
+#auth-view-pin .form-group,
+#auth-view-set-pin .form-group {
+  margin-bottom: 0.85rem;
+}
+
+#auth-view-pin label,
+#auth-view-set-pin label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+#auth-view-pin input,
+#auth-view-set-pin input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+#auth-view-pin input:focus,
+#auth-view-set-pin input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.12);
+}
+
+/* 4-digit PIN boxes: large, spaced digits */
+.pin-input-wrapper {
+  position: relative;
+}
+
+input.pin-input {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.6em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+input.pin-input::placeholder {
+  letter-spacing: 0.6em;
+  color: #CBD5E1;
+}
+
+.pin-input-wrapper input.pin-input {
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+}
+
+.pin-visibility-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.35rem;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.auth-submit-btn {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.auth-help-text {
+  margin-top: 0.85rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+#auth-view-set-pin .auth-help-text {
+  margin: 0 0 1rem;
+}
+
+.auth-change-id-btn {
+  margin: -0.5rem 0 0.75rem;
+  font-size: 0.8rem;
+}
+
 /* ============================================
    ONBOARDING MODAL — New User Setup
    Two-step wizard with progress indicator
@@ -6227,6 +6379,11 @@ footer {
     padding: 0.4rem 0.7rem;
   }
 
+  /* Customer "Sign Out": icon only, so the logo keeps its two lines */
+  #merchant-portal-btn .portal-btn-label {
+    display: none;
+  }
+
   .marketplace-container {
     padding: 0 0.75rem;
   }
@@ -6238,7 +6395,7 @@ footer {
 
 /* Touch devices: 16px inputs stop iOS Safari from zooming in on focus */
 @media (hover: none) and (pointer: coarse) {
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.pin-input),
   select,
   textarea {
     font-size: 16px !important;

@@ -2,7 +2,7 @@ import { Router } from "express";
 import sql from "../db.js";
 import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
-import { generateTempPassword } from "../utils.js";
+import { generateTempPin } from "../utils.js";
 
 const router = Router();
 
@@ -201,9 +201,10 @@ router.put("/products/:id/status", async (req, res) => {
   }
 });
 
-// ─── POST /api/admin/merchants/:id/reset-password ───────
-// Issue a new temporary password for a merchant's login account
-router.post("/merchants/:id/reset-password", async (req, res) => {
+// ─── POST /api/admin/merchants/:id/reset-pin ────────────
+// Issue a new temporary PIN for a merchant's login account (also clears a PIN lockout).
+// The merchant must set their own PIN on the next login.
+router.post("/merchants/:id/reset-pin", async (req, res) => {
   try {
     const merchants = await sql`SELECT id, user_id, shop_name FROM merchants WHERE id = ${req.params.id}`;
     if (merchants.length === 0 || !merchants[0].user_id) {
@@ -211,19 +212,23 @@ router.post("/merchants/:id/reset-password", async (req, res) => {
     }
 
     const merchant = merchants[0];
-    const temporaryPassword = generateTempPassword();
-    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
-    await sql`UPDATE users SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${merchant.user_id}`;
+    const temporaryPin = generateTempPin();
+    const pinHash = await bcrypt.hash(temporaryPin, 12);
+    await sql`
+      UPDATE users
+      SET pin_hash = ${pinHash}, must_change_pin = TRUE, failed_pin_attempts = 0, pin_locked_until = NULL, updated_at = NOW()
+      WHERE id = ${merchant.user_id}
+    `;
 
     await sql`
       INSERT INTO audit_logs (admin_id, action, target, details)
-      VALUES (${req.user.id}, 'MERCHANT_PASSWORD_RESET', ${merchant.shop_name}, ${"Temporary password issued"})
+      VALUES (${req.user.id}, 'MERCHANT_PIN_RESET', ${merchant.shop_name}, ${"Temporary PIN issued"})
     `;
 
-    res.json({ temporaryPassword });
+    res.json({ temporaryPin });
   } catch (err) {
-    console.error("Reset merchant password error:", err);
-    res.status(500).json({ error: "Failed to reset password" });
+    console.error("Reset merchant PIN error:", err);
+    res.status(500).json({ error: "Failed to reset PIN" });
   }
 });
 

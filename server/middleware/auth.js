@@ -22,35 +22,48 @@ if (!process.env.JWT_SECRET) {
   );
 }
 
-// Generate a JWT token for a user
-export function generateToken(user) {
-  return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      full_name: user.full_name,
-    },
-    getJwtSecret(),
-    { expiresIn: "7d" }
-  );
+// Generate a JWT token for a user.
+// A pinChangeRequired token (issued after logging in with a temporary PIN) is only
+// accepted by routes that use requirePinChangeAuth, so it can do nothing but set a new PIN.
+export function generateToken(user, { pinChangeRequired = false } = {}) {
+  const payload = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    full_name: user.full_name,
+  };
+  if (pinChangeRequired) payload.pin_change_required = true;
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: pinChangeRequired ? "1h" : "7d" });
 }
 
-// Middleware: Verify JWT and attach user to req
-export function requireAuth(req, res, next) {
+function authenticate(req, res, next, allowPinChange) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Authentication required" });
   }
 
   const token = authHeader.split(" ")[1];
+  let decoded;
   try {
-    const decoded = jwt.verify(token, getJwtSecret());
-    req.user = decoded;
-    next();
+    decoded = jwt.verify(token, getJwtSecret());
   } catch (err) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
+  if (decoded.pin_change_required && !allowPinChange) {
+    return res.status(403).json({ error: "Please set a new PIN before continuing.", code: "PIN_CHANGE_REQUIRED" });
+  }
+  req.user = decoded;
+  next();
+}
+
+// Middleware: Verify JWT and attach user to req
+export function requireAuth(req, res, next) {
+  authenticate(req, res, next, false);
+}
+
+// Middleware: like requireAuth, but also accepts a temporary-PIN token
+export function requirePinChangeAuth(req, res, next) {
+  authenticate(req, res, next, true);
 }
 
 // Middleware: Require merchant role
@@ -75,7 +88,9 @@ export function optionalAuth(req, res, next) {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.split(" ")[1];
     try {
-      req.user = jwt.verify(token, getJwtSecret());
+      const decoded = jwt.verify(token, getJwtSecret());
+      // A temporary-PIN token browses as a guest until the new PIN is set
+      if (!decoded.pin_change_required) req.user = decoded;
     } catch (err) {
       // Invalid token — just continue without user
     }

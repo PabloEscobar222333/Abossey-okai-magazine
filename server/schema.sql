@@ -8,7 +8,11 @@ CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
   email         VARCHAR(255) UNIQUE,
   phone         VARCHAR(20) UNIQUE,
-  password_hash VARCHAR(255),            -- nullable for Google OAuth users
+  password_hash VARCHAR(255),            -- legacy; login now uses pin_hash
+  pin_hash      VARCHAR(255),            -- bcrypt of the 4-digit login PIN; null for Google-only users
+  must_change_pin     BOOLEAN DEFAULT FALSE, -- set when an admin issues a temporary PIN
+  failed_pin_attempts INT DEFAULT 0,
+  pin_locked_until    TIMESTAMPTZ,        -- PIN login blocked until this time after repeated misses
   full_name     VARCHAR(255),
   google_id     VARCHAR(255) UNIQUE,     -- Google OAuth unique sub/uid
   avatar_url    TEXT,                     -- Google profile picture URL
