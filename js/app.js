@@ -196,6 +196,9 @@ function jsArg(value) {
   return escapeHtml(JSON.stringify(String(value ?? "")));
 }
 
+// Public info pages reachable from the footer (also deep-linkable as /#page)
+const INFO_PAGES = ["guidelines", "report-scam", "register-stall"];
+
 // Fetch wrapper for the backend API: adds the JWT and JSON body, never throws
 async function apiRequest(path, { method = "GET", body } = {}) {
   const token = localStorage.getItem("ao_jwt_token");
@@ -341,6 +344,8 @@ class AbbosseyOkaiApp {
     this.setupBrandMarquee();
     this.initUrlStateSync();
     this.setupPriceRangeEvents();
+    this.openInfoPageFromHash();
+    window.addEventListener("hashchange", () => this.openInfoPageFromHash());
 
     // Load backend data async (will call renderCatalog when done)
     this.loadBackendData();
@@ -2596,24 +2601,11 @@ class AbbosseyOkaiApp {
     window.open(navUrl, "_blank");
   }
 
-  async reportListing() {
+  // "Report this listing" on a product page opens the Report Scam Listings page, prefilled
+  reportListing() {
     const product = this.activePdpProduct;
     if (!product) return;
-
-    const reason = prompt(`What's wrong with "${product.name}"?`, "Suspected fake or misleading listing");
-    if (reason === null) return;
-
-    const res = await apiRequest(`/api/products/${product.id}/report`, {
-      method: "POST",
-      body: { reason: reason.trim() || "Reported by customer for verification" }
-    });
-    if (!res.ok) {
-      this.showToast(`Could not send report: ${res.error}`, "error");
-      return;
-    }
-
-    this.showToast("Listing reported! Our administrators will review it shortly.", "success");
-    this.closePdp();
+    this.openInfoPage("report-scam", { product });
   }
 
   // Switch between public storefront and merchant dashboard views
@@ -2649,8 +2641,19 @@ class AbbosseyOkaiApp {
     const dashboard = document.getElementById("merchant-dashboard-panel");
     const adminDashboard = document.getElementById("admin-dashboard-panel");
     const allBrands = document.getElementById("all-brands-view-panel");
+    const infoPanel = document.getElementById("info-page-panel");
+    if (infoPanel) infoPanel.style.display = "none";
 
-    if (view === "dashboard") {
+    if (INFO_PAGES.includes(view)) {
+      storefront.style.display = "none";
+      dashboard.style.display = "none";
+      if (adminDashboard) adminDashboard.style.display = "none";
+      if (allBrands) allBrands.style.display = "none";
+      if (infoPanel) infoPanel.style.display = "block";
+      document.querySelectorAll("#info-page-panel .info-page").forEach(el => {
+        el.style.display = el.id === `info-page-${view}` ? "block" : "none";
+      });
+    } else if (view === "dashboard") {
       storefront.style.display = "none";
       dashboard.style.display = "grid";
       if (adminDashboard) adminDashboard.style.display = "none";
@@ -5523,6 +5526,7 @@ class AbbosseyOkaiApp {
       this.renderAdminOverview();
     } else if (tab === "merchants") {
       this.renderAdminMerchants();
+      this.renderAdminApplications();
       // Initialize Google map after panel is visible
       setTimeout(() => this.initOnboardMap(), 150);
     } else if (tab === "listings") {
@@ -5814,6 +5818,12 @@ class AbbosseyOkaiApp {
     });
 
     this.logAdminAction("MERCHANT_ONBOARD", shopName, `Dealer registered — email: ${email}, phone: ${savedPhone}, DB id: ${res.data.merchantProfile?.id}`);
+
+    if (this.activeApplicationId) {
+      await this.setAdminApplicationStatus(this.activeApplicationId, "onboarded");
+      this.activeApplicationId = null;
+      this.renderAdminApplications();
+    }
 
     this.showMerchantCredentialsModal({
       title: "Merchant Onboarded!",
@@ -6122,8 +6132,9 @@ class AbbosseyOkaiApp {
 
     reports.forEach(r => {
       const tr = document.createElement("tr");
-      const productName = r.product_name || "Deleted product";
-      const shopName = r.merchant_shop_name || "Unknown Seller";
+      const productName = r.product_name || r.listing_ref || "Deleted product";
+      const shopName = r.merchant_shop_name || r.shop_name || "Unknown Seller";
+      const reporter = [r.reporter_name, r.reporter_phone].filter(Boolean).join(" · ");
       const reason = r.reason || "No reason provided";
       const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : "";
       const id = jsArg(r.id);
@@ -6140,6 +6151,7 @@ class AbbosseyOkaiApp {
           <span style="color:#DC2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(reason)}</span>
           <span style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(date)}</span>
           ${r.details ? `<span style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${escapeHtml(r.details)}</span>` : ''}
+          ${reporter ? `<span style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;"><i class="fa-solid fa-user"></i> Reported by ${escapeHtml(reporter)}</span>` : ''}
         </div>
       `;
 
@@ -6160,6 +6172,114 @@ class AbbosseyOkaiApp {
       tr.innerHTML = `<td>${infoCell}</td><td>${reasonCell}</td><td>${actionCell}</td>`;
       tbody.appendChild(tr);
     });
+  }
+
+  // ─── Admin: stall registration requests ──────────────────
+  async renderAdminApplications() {
+    const tbody = document.getElementById("admin-applications-table-body");
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:1.5rem 1rem; color:var(--text-muted);">Loading requests...</td></tr>`;
+
+    const res = await apiRequest("/api/admin/applications");
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:1.5rem 1rem; color:#DC2626;">Could not load requests: ${escapeHtml(res.error)}</td></tr>`;
+      return;
+    }
+    const all = res.data.applications || [];
+    this.adminApplications = all;
+    const showAll = document.getElementById("admin-applications-show-all")?.checked;
+    const pending = all.filter(a => a.status === "pending" || a.status === "contacted");
+    const rows = showAll ? all : pending;
+    const pill = document.getElementById("admin-applications-count");
+    if (pill) pill.textContent = pending.length;
+
+    if (rows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:1.5rem 1rem; color:var(--text-muted);">No ${showAll ? "" : "open "}registration requests. Dealers can apply from the "Register Seller Stall" link in the footer.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map(a => {
+      const id = jsArg(a.id);
+      const date = a.created_at ? new Date(a.created_at).toLocaleDateString() : "";
+      const open = a.status === "pending" || a.status === "contacted";
+      const phoneDigits = (a.phone || "").replace(/[^0-9]/g, "");
+      return `<tr>
+        <td>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <strong style="font-size:0.85rem; color:var(--charcoal);">${escapeHtml(a.shop_name)}</strong>
+            <span style="font-size:0.78rem; color:var(--text-muted);"><i class="fa-solid fa-user"></i> ${escapeHtml(a.owner_name || "—")}</span>
+            <span><span class="admin-status-pill ${escapeHtml(a.status)}">${escapeHtml(a.status)}</span> <span style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(date)}</span></span>
+          </div>
+        </td>
+        <td>
+          <div style="display:flex; flex-direction:column; gap:2px; font-size:0.8rem;">
+            <span><i class="fa-brands fa-whatsapp" style="color:var(--whatsapp-color);"></i> ${escapeHtml(a.phone || "—")}</span>
+            <span><i class="fa-solid fa-envelope"></i> ${escapeHtml(a.email || "no email")}</span>
+            <span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(a.location || "—")}</span>
+            <span style="color:var(--text-muted);"><i class="fa-solid fa-tag"></i> ${escapeHtml(a.specialty || "general")}</span>
+            ${a.message ? `<span style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">"${escapeHtml(a.message)}"</span>` : ""}
+          </div>
+        </td>
+        <td>
+          <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" style="padding:3px 8px; font-size:0.75rem;" onclick="app.useApplicationForOnboarding(${id})" ${open ? "" : "disabled"}>
+              <i class="fa-solid fa-user-plus"></i> Onboard
+            </button>
+            <button class="btn btn-secondary btn-sm" style="color:var(--whatsapp-color); border-color:var(--whatsapp-color); padding:3px 8px; font-size:0.75rem;" onclick="app.contactApplicant(${id})" ${phoneDigits ? "" : "disabled"}>
+              <i class="fa-brands fa-whatsapp"></i> Contact
+            </button>
+            <button class="btn btn-secondary btn-sm" style="color:#DC2626; border-color:#FCA5A5; padding:3px 8px; font-size:0.75rem;" onclick="app.declineApplication(${id})" ${open ? "" : "disabled"}>
+              <i class="fa-solid fa-xmark"></i> Decline
+            </button>
+          </div>
+        </td>
+      </tr>`;
+    }).join("");
+  }
+
+  findAdminApplication(id) {
+    return (this.adminApplications || []).find(a => String(a.id) === String(id));
+  }
+
+  async setAdminApplicationStatus(id, status) {
+    const res = await apiRequest(`/api/admin/applications/${id}`, { method: "PATCH", body: { status } });
+    if (!res.ok) this.showToast(`Could not update request: ${res.error}`, "error");
+    return res.ok;
+  }
+
+  // Copies the request into the onboarding form below; the request is marked onboarded once that form succeeds
+  useApplicationForOnboarding(id) {
+    const a = this.findAdminApplication(id);
+    if (!a) return;
+    const set = (elId, v) => { const el = document.getElementById(elId); if (el) { el.value = v || ""; el.dispatchEvent(new Event("input")); } };
+    set("onboard-merchant-shop", a.shop_name);
+    set("onboard-merchant-phone", a.phone);
+    set("onboard-merchant-email", a.email);
+    set("onboard-merchant-location", a.location);
+    set("onboard-merchant-desc", a.message ? `${a.shop_name} — ${a.message}` : "");
+    const spec = document.getElementById("onboard-merchant-specialty");
+    if (spec) spec.value = a.specialty || "general";
+    this.activeApplicationId = a.id;
+    document.getElementById("admin-onboard-merchant-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    this.showToast(`Details of "${a.shop_name}" copied into the onboarding form. Set the map pin, then register.`, "info");
+  }
+
+  async contactApplicant(id) {
+    const a = this.findAdminApplication(id);
+    if (!a || !a.phone) return;
+    const msg = `Hello ${a.owner_name || a.shop_name}, this is ABBOSSEY OKAI MAGAZINE. We received your request to register "${a.shop_name}" (${a.location || "Abossey Okai"}). When can we visit your stall to verify it and set up your merchant account?`;
+    window.open(`https://api.whatsapp.com/send/?phone=${a.phone.replace(/[^0-9]/g, "")}&text=${encodeURIComponent(msg)}`, "_blank");
+    if (a.status === "pending" && await this.setAdminApplicationStatus(id, "contacted")) {
+      await this.renderAdminApplications();
+    }
+  }
+
+  async declineApplication(id) {
+    const a = this.findAdminApplication(id);
+    if (!a || !confirm(`Decline the registration request from "${a.shop_name}"?`)) return;
+    if (!(await this.setAdminApplicationStatus(id, "declined"))) return;
+    this.showToast("Request declined.", "success");
+    await this.renderAdminApplications();
   }
 
   findAdminReport(reportId) {
@@ -6750,7 +6870,129 @@ class AbbosseyOkaiApp {
   }
 
   showStorefront() {
+    if (INFO_PAGES.includes((location.hash || "").slice(1))) {
+      history.replaceState(null, "", location.pathname + location.search);
+    }
     this.switchAppView("storefront");
+  }
+
+  // ─── Info pages (footer): Trading Guidelines, Report Scam Listings, Register Seller Stall ───
+  openInfoPage(page, options = {}) {
+    if (!INFO_PAGES.includes(page)) return;
+    this.closePdp?.();
+    this.setMobileMenuOpen(false);
+    if (page === "report-scam") {
+      this.resetScamReportForm(false);
+      if (options.product) {
+        const p = options.product;
+        const ref = document.getElementById("scam-listing-ref");
+        const shop = document.getElementById("scam-shop-name");
+        const pid = document.getElementById("scam-product-id");
+        if (ref) ref.value = p.name || "";
+        if (shop) shop.value = (p.merchant && (p.merchant.shopName || p.merchant.shop_name)) || "";
+        if (pid) pid.value = p.id || "";
+      }
+    } else if (page === "register-stall") {
+      const form = document.getElementById("stall-application-form");
+      const done = document.getElementById("stall-application-success");
+      if (form) form.style.display = "";
+      if (done) done.style.display = "none";
+    }
+    if ((location.hash || "").slice(1) !== page) history.replaceState(null, "", `${location.pathname}${location.search}#${page}`);
+    this.switchAppView(page);
+  }
+
+  // Deep links like /#guidelines open the page directly
+  openInfoPageFromHash() {
+    const page = (location.hash || "").slice(1);
+    if (INFO_PAGES.includes(page)) this.openInfoPage(page);
+  }
+
+  // Footer "Merchant Trust" / "User FAQ": these sections live on the storefront, so go there first
+  scrollToStorefrontSection(sectionId) {
+    if (this.currentView !== "storefront") this.showStorefront();
+    requestAnimationFrame(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  resetScamReportForm(focus = true) {
+    const form = document.getElementById("scam-report-form");
+    const done = document.getElementById("scam-report-success");
+    if (form) { form.reset(); form.style.display = ""; }
+    const pid = document.getElementById("scam-product-id");
+    if (pid) pid.value = "";
+    if (done) done.style.display = "none";
+    if (focus) document.getElementById("scam-listing-ref")?.focus();
+  }
+
+  async submitScamReport(event) {
+    event.preventDefault();
+    const val = id => (document.getElementById(id)?.value || "").trim();
+    const body = {
+      product_id: val("scam-product-id") || undefined,
+      listing_ref: val("scam-listing-ref"),
+      shop_name: val("scam-shop-name"),
+      reason: val("scam-reason"),
+      details: val("scam-details"),
+      reporter_name: val("scam-reporter-name"),
+      reporter_phone: val("scam-reporter-phone"),
+    };
+    if (!body.listing_ref && !body.shop_name) {
+      this.showToast("Tell us which listing or shop you are reporting.", "error");
+      document.getElementById("scam-listing-ref")?.focus();
+      return;
+    }
+    if (body.details.length < 10) {
+      this.showToast("Please describe what happened in a bit more detail.", "error");
+      document.getElementById("scam-details")?.focus();
+      return;
+    }
+
+    const btn = document.getElementById("scam-report-submit");
+    const original = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...'; }
+    const res = await apiRequest("/api/public/scam-reports", { method: "POST", body });
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+
+    if (!res.ok) {
+      this.showToast(res.error, "error");
+      return;
+    }
+    document.getElementById("scam-report-form").style.display = "none";
+    document.getElementById("scam-report-success").style.display = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    this.showToast("Report sent. Thank you for keeping the market safe.", "success");
+  }
+
+  async submitStallApplication(event) {
+    event.preventDefault();
+    const val = id => (document.getElementById(id)?.value || "").trim();
+    const body = {
+      shop_name: val("stall-shop-name"),
+      owner_name: val("stall-owner-name"),
+      phone: val("stall-phone"),
+      email: val("stall-email"),
+      location: val("stall-location"),
+      specialty: val("stall-specialty"),
+      message: val("stall-message"),
+    };
+
+    const btn = document.getElementById("stall-application-submit");
+    const original = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...'; }
+    const res = await apiRequest("/api/public/stall-applications", { method: "POST", body });
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+
+    if (!res.ok) {
+      this.showToast(res.error, res.status === 409 ? "warning" : "error");
+      return;
+    }
+    event.target.reset();
+    document.getElementById("stall-application-form").style.display = "none";
+    document.getElementById("stall-application-success").style.display = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    this.showToast("Registration request sent!", "success");
   }
 
   // Smooth scroll categories tabs to the right when arrow is clicked

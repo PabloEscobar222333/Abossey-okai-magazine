@@ -34,6 +34,9 @@ async function migrate() {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_pin BOOLEAN DEFAULT FALSE`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_pin_attempts INT DEFAULT 0`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMPTZ`,
+      `ALTER TABLE reported_listings ADD COLUMN IF NOT EXISTS listing_ref TEXT`,
+      `ALTER TABLE reported_listings ADD COLUMN IF NOT EXISTS shop_name VARCHAR(255)`,
+      `ALTER TABLE reported_listings ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(255)`,
     ];
 
     for (const alterStmt of columnMigrations) {

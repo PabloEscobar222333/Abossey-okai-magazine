@@ -8,6 +8,7 @@ import productRoutes from "./routes/products.js";
 import adminRoutes from "./routes/admin.js";
 import brandRoutes from "./routes/brands.js";
 import settingsRoutes from "./routes/settings.js";
+import publicRoutes from "./routes/public.js";
 
 dotenv.config();
 
@@ -78,6 +79,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/brands", brandRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/public", publicRoutes);
 
 // Also mount without /api prefix in case serverless router forwards path without prefix
 app.use("/auth", authRoutes);
@@ -86,6 +88,7 @@ app.use("/products", productRoutes);
 app.use("/brands", brandRoutes);
 app.use("/admin", adminRoutes);
 app.use("/settings", settingsRoutes);
+app.use("/public", publicRoutes);
 
 // ─── 404 Handler ────────────────────────────────────────
 app.use((req, res) => {
