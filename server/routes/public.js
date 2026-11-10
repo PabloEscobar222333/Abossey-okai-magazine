@@ -120,7 +120,7 @@ router.post("/stall-applications", async (req, res) => {
       LIMIT 1
     `;
     if (pending.length > 0) {
-      return res.status(409).json({ error: "We already have your request and will contact you on WhatsApp soon." });
+      return res.status(409).json({ error: "We already have your request and will call you soon." });
     }
 
     const [application] = await sql`
@@ -129,7 +129,7 @@ router.post("/stall-applications", async (req, res) => {
       RETURNING id, created_at
     `;
 
-    res.status(201).json({ application, message: "Request received. Our team will contact you on WhatsApp to verify your stall." });
+    res.status(201).json({ application, message: "Request received. Our team will call you to verify your stall." });
   } catch (err) {
     console.error("Stall application error:", err);
     res.status(500).json({ error: "Could not send your request. Please try again." });
