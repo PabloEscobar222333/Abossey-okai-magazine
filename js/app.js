@@ -1212,35 +1212,28 @@ class AbbosseyOkaiApp {
       return;
     }
 
+    const taxonomy = VEHICLE_TAXONOMY[selectedMake] || this.getTaxonomyForBrand(selectedMake);
     modelSelect.disabled = false;
     modelSelect.innerHTML = '<option value="">All Models</option>';
-    VEHICLE_TAXONOMY[selectedMake].models.forEach(model => {
-      modelSelect.innerHTML += `<option value="${model}">${model}</option>`;
+    taxonomy.models.forEach(model => {
+      modelSelect.innerHTML += `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`;
     });
 
-    yearSelect.value = "";
-    yearSelect.disabled = true;
+    // Years don't depend on the model, so the year box opens as soon as a brand is chosen
+    this.fillYearSelect(yearSelect, taxonomy.years, "All Years");
   }
 
   onModelChange() {
-    const makeSelect = document.getElementById("select-vehicle-make");
-    const modelSelect = document.getElementById("select-vehicle-model");
-    const yearSelect = document.getElementById("select-vehicle-year");
-    
-    const selectedMake = makeSelect.value;
-    const selectedModel = modelSelect.value;
+    // The year list is per brand, so choosing a model leaves it untouched
+  }
 
-    if (!selectedModel) {
-      yearSelect.value = "";
-      yearSelect.disabled = true;
-      return;
-    }
-
+  fillYearSelect(yearSelect, years, placeholder) {
+    if (!yearSelect) return;
+    const list = Array.isArray(years) && years.length ? years : this.getDefaultYears();
+    yearSelect.innerHTML = `<option value="">${placeholder}</option>` +
+      list.map(y => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join("");
     yearSelect.disabled = false;
-    yearSelect.innerHTML = '<option value="">All Years</option>';
-    VEHICLE_TAXONOMY[selectedMake].years.forEach(year => {
-      yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
-    });
+    yearSelect.value = "";
   }
 
   // Populate models inside new product creation form
@@ -1610,7 +1603,11 @@ class AbbosseyOkaiApp {
       if (make) {
         this.activeFilters.make = make;
         const makeSelect = document.getElementById("select-vehicle-make");
-        if (makeSelect) makeSelect.value = make;
+        if (makeSelect) {
+          makeSelect.value = make;
+          // Fill the model and year lists for this brand so the saved values can be shown
+          if (makeSelect.value === make) this.onMakeChange();
+        }
       }
       if (model) {
         this.activeFilters.model = model;
@@ -4107,6 +4104,10 @@ class AbbosseyOkaiApp {
   }
 
   previewMerchantShop() {
+    if (!this.merchantProfile || !this.merchantProfile.shopName) {
+      this.showToast("Log in to your merchant portal to preview your shop.", "warning");
+      return;
+    }
     this.switchAppView('storefront');
     this.searchQuery = this.merchantProfile.shopName;
     this.renderCatalog();
@@ -6709,34 +6710,16 @@ class AbbosseyOkaiApp {
     if (!modelSelect || !yearSelect) return;
     
     modelSelect.innerHTML = '<option value="">Choose Model</option>';
-    yearSelect.innerHTML = '<option value="">Choose Year</option>';
-    yearSelect.disabled = true;
-    
     const taxonomy = this.getTaxonomyForBrand(brandName);
     taxonomy.models.forEach(model => {
-      modelSelect.innerHTML += `<option value="${model}">${model}</option>`;
+      modelSelect.innerHTML += `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`;
     });
+    // Model is optional, so the year box must not wait for it
+    this.fillYearSelect(yearSelect, taxonomy.years, "Choose Year");
   }
 
   onBrandModelChange() {
-    const modelSelect = document.getElementById("select-brand-model");
-    const yearSelect = document.getElementById("select-brand-year");
-    if (!modelSelect || !yearSelect) return;
-    
-    const selectedModel = modelSelect.value;
-    if (!selectedModel) {
-      yearSelect.innerHTML = '<option value="">Choose Year</option>';
-      yearSelect.disabled = true;
-      return;
-    }
-    
-    yearSelect.disabled = false;
-    yearSelect.innerHTML = '<option value="">Choose Year</option>';
-    
-    const taxonomy = this.getTaxonomyForBrand(this.selectedBrandForSearch);
-    taxonomy.years.forEach(year => {
-      yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
-    });
+    // Years are per brand; nothing to refresh when the model changes
   }
 
   setBrandSearchMode(mode) {
@@ -6797,15 +6780,9 @@ class AbbosseyOkaiApp {
         this.onMakeChange();
         
         const modelSelect = document.getElementById("select-vehicle-model");
-        if (modelSelect && model) {
-          modelSelect.value = model;
-          this.onModelChange();
-          
-          const yearSelect = document.getElementById("select-vehicle-year");
-          if (yearSelect && year) {
-            yearSelect.value = year;
-          }
-        }
+        if (modelSelect && model) modelSelect.value = model;
+        const yearSelect = document.getElementById("select-vehicle-year");
+        if (yearSelect && year) yearSelect.value = year;
       } else {
         makeSelect.value = "";
         this.onMakeChange();
@@ -6858,8 +6835,9 @@ class AbbosseyOkaiApp {
     if (mainSearchInput) mainSearchInput.value = "";
     
     // Sync checkbox in sidebar
+    const brandLower = (this.selectedBrandForSearch || "").toLowerCase();
     document.querySelectorAll(".brand-filter-checkbox").forEach(cb => {
-      cb.checked = (cb.value.toLowerCase() === this.selectedBrandForSearch.toLowerCase());
+      cb.checked = (cb.value.toLowerCase() === brandLower);
     });
     
     this.renderCatalog();
