@@ -2575,13 +2575,9 @@ class AbbosseyOkaiApp {
     // Same location the product-page map shows (live merchant profile first, then product snapshot)
     const { lat, lng, shopName } = this.activePdpShopLocation;
 
-    // Detect Apple / iOS devices
-    const isAppleDevice = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && (navigator.maxTouchPoints > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent));
-
-    // Open turn-by-turn directions from the customer's current location to the shop
-    const navUrl = isAppleDevice
-      ? this.getAppleDirectionsUrl(lat, lng)
-      : this.getGoogleDirectionsUrl(lat, lng);
+    // Always Google Maps, on every device: the universal link opens the Google Maps app on
+    // iPhone and Android when it is installed, otherwise Google Maps in the browser
+    const navUrl = this.getGoogleDirectionsUrl(lat, lng);
 
     // Lead tracking
     if (p.id) {
@@ -3603,10 +3599,6 @@ class AbbosseyOkaiApp {
   // Directions links: no origin is given, so the maps app starts from the customer's current location
   getGoogleDirectionsUrl(lat, lng) {
     return `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lng.toFixed(6)}`;
-  }
-
-  getAppleDirectionsUrl(lat, lng) {
-    return `https://maps.apple.com/?daddr=${lat.toFixed(6)},${lng.toFixed(6)}`;
   }
 
   async saveMerchantLocation() {
