@@ -3681,9 +3681,7 @@ class AbbosseyOkaiApp {
       if (displayLoc) displayLoc.innerHTML = `<i class="fa-solid fa-location-dot"></i> ${finalLocation}`;
 
       const settingsLoc = document.getElementById("settings-location");
-      const settingsCoords = document.getElementById("settings-coordinates");
       if (settingsLoc) settingsLoc.value = finalLocation;
-      if (settingsCoords) settingsCoords.value = coordsString;
 
       this.showToast("Shop location and map pinpoint saved successfully!", "success");
     } catch (err) {
@@ -3734,23 +3732,16 @@ class AbbosseyOkaiApp {
     const nameInput = document.getElementById('settings-shop-name');
     const phoneInput = document.getElementById('settings-contact-phone');
     const locInput = document.getElementById('settings-location');
-    const coordsInput = document.getElementById('settings-coordinates');
     const descTextarea = document.getElementById('settings-description');
 
     if (nameInput) nameInput.value = this.merchantProfile.shopName || '';
     if (phoneInput) phoneInput.value = this.merchantProfile.phone || '';
     if (locInput) locInput.value = this.merchantProfile.location || '';
-    if (coordsInput) coordsInput.value = this.merchantProfile.coordinates || '';
     if (descTextarea) {
       descTextarea.value = this.merchantProfile.description || '';
       this.updateDescCharCount(descTextarea);
     }
     
-    // Map pin label & Google Maps link
-    const mapPinLabel = document.getElementById('map-pin-shop-label');
-    if (mapPinLabel) mapPinLabel.textContent = this.merchantProfile.shopName || 'Abossey Okai';
-    this.updateMapPreviewLink(this.merchantProfile.coordinates || '5.5562, -0.2284');
-
     // Category tags
     if (!Array.isArray(this.merchantProfile.categoryTags) || this.merchantProfile.categoryTags.length === 0) {
       this.merchantProfile.categoryTags = ["Brake Systems", "Engine Parts", "Toyota Specialist", "Honda Specialist"];
@@ -3776,14 +3767,6 @@ class AbbosseyOkaiApp {
     if (counter) {
       const max = textarea.getAttribute('maxlength') || 500;
       counter.textContent = `${textarea.value.length} / ${max}`;
-    }
-  }
-
-  updateMapPreviewLink(coords) {
-    const link = document.getElementById('settings-google-maps-link');
-    if (link) {
-      const query = coords ? coords.trim() : '5.5562,-0.2284';
-      link.href = `https://maps.google.com/?q=${encodeURIComponent(query)}`;
     }
   }
 
@@ -4165,7 +4148,7 @@ class AbbosseyOkaiApp {
         shop_name: document.getElementById('settings-shop-name').value.trim(),
         phone: document.getElementById('settings-contact-phone').value.trim(),
         location: document.getElementById('settings-location').value.trim(),
-        coordinates: document.getElementById('settings-coordinates').value.trim(),
+        // Coordinates are managed in the Locations & Map tab; the server keeps the saved value
         description: document.getElementById('settings-description').value.trim(),
       }
     });
