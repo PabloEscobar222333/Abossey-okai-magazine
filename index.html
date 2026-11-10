@@ -810,6 +810,243 @@
       </div>
 
       <!-- MERCHANT DASHBOARD VIEW -->
+      <!-- ===== INFO PAGES: Trading Guidelines / Report Scam Listings / Register Seller Stall ===== -->
+      <section class="all-brands-view info-page-view" id="info-page-panel" style="display: none;">
+        <div class="brands-container-box info-page-box">
+          <div class="brands-navigation-bar">
+            <a href="#" class="btn-back-to-storefront" onclick="app.showStorefront(); return false;">
+              <i class="fa-solid fa-arrow-left"></i> Back to Marketplace
+            </a>
+          </div>
+
+          <!-- PAGE: Trading Guidelines -->
+          <article class="info-page" id="info-page-guidelines" style="display: none;">
+            <header class="info-page-header">
+              <div class="section-icon-badge blue-badge"><i class="fa-solid fa-scale-balanced"></i></div>
+              <div>
+                <h1>Trading Guidelines</h1>
+                <p>How buying and selling works on ABBOSSEY OKAI MAGAZINE, and the rules every merchant and buyer agrees to.</p>
+              </div>
+            </header>
+
+            <div class="info-callout">
+              <i class="fa-solid fa-circle-info"></i>
+              <p>ABBOSSEY OKAI MAGAZINE is a <strong>discovery platform</strong>, not a shop. We list parts and accessories from physical stalls in Abossey Okai, Accra, and connect you to the dealer on WhatsApp or with directions. Payment and delivery are agreed directly between buyer and dealer.</p>
+            </div>
+
+            <section class="info-section">
+              <h2><i class="fa-solid fa-cart-shopping"></i> For buyers</h2>
+              <ol class="info-list">
+                <li><strong>Confirm before you pay.</strong> Chat with the dealer on WhatsApp, ask for a live photo or video of the exact part, and confirm the price, condition (New, Used or Refurbished) and vehicle fitment.</li>
+                <li><strong>Prefer paying at the stall.</strong> Every verified dealer has a physical stall and GPS pin. Use "Locate Merchant Shop" to visit, inspect the part and pay on the spot where you can.</li>
+                <li><strong>Be careful with advance payments.</strong> Never send a deposit to a personal mobile money number that doesn't match the shop's listed WhatsApp number. If a dealer insists on full payment upfront from an unknown number, stop and report it.</li>
+                <li><strong>Check the part number.</strong> Compare the OEM or part number on the item with your old part or your vehicle's manual before you accept it.</li>
+                <li><strong>Agree on returns up front.</strong> Ask the dealer about their return or exchange policy before paying, and keep your receipt or WhatsApp chat as proof.</li>
+                <li><strong>Report anything suspicious.</strong> Use <a href="#report-scam" onclick="app.openInfoPage('report-scam'); return false;">Report Scam Listings</a> if a listing is fake, a dealer asks for money dishonestly, or the part delivered was not what was listed.</li>
+              </ol>
+            </section>
+
+            <section class="info-section">
+              <h2><i class="fa-solid fa-store"></i> For merchants</h2>
+              <ol class="info-list">
+                <li><strong>List only what you actually stock.</strong> Mark items "Out of Stock" or hide them as soon as they sell. Repeatedly listing parts you don't have leads to takedowns.</li>
+                <li><strong>Use real photos and honest descriptions.</strong> Photograph the actual item in your stall. No stolen images, misleading brand names or "genuine" claims for aftermarket parts.</li>
+                <li><strong>State the right condition and price.</strong> Choose New, Used or Refurbished truthfully, and quote the price buyers will really pay. Bait pricing is not allowed.</li>
+                <li><strong>Get the fitment right.</strong> Only tag vehicles the part really fits. Buyers report wrong fitment, and repeated reports affect your Verified status.</li>
+                <li><strong>Respond professionally.</strong> Reply to WhatsApp leads promptly, be polite and never pressure buyers to pay before they have seen the part.</li>
+                <li><strong>Keep your shop details current.</strong> Your WhatsApp number, stall location and map pin must be accurate so buyers can find you. Update them from your Merchant Portal.</li>
+                <li><strong>One account per shop.</strong> Accounts are created by our admin team after a stall visit. Do not share your PIN or lend your account to another seller.</li>
+              </ol>
+            </section>
+
+            <section class="info-section">
+              <h2><i class="fa-solid fa-ban"></i> Not allowed on the platform</h2>
+              <ul class="info-list info-list-plain">
+                <li>Counterfeit parts sold as genuine, or parts with falsified brand markings.</li>
+                <li>Stolen vehicle parts, or parts with chassis, engine or serial numbers removed.</li>
+                <li>Safety-critical parts (brakes, airbags, seat belts, steering) that are damaged, expired or salvaged and sold as safe.</li>
+                <li>Listings for anything other than vehicle parts and accessories.</li>
+                <li>Fake reviews, duplicate listings to crowd search results, or impersonating another shop.</li>
+                <li>Requesting payment outside the dealer's listed shop number, or any form of advance-fee fraud.</li>
+              </ul>
+            </section>
+
+            <section class="info-section">
+              <h2><i class="fa-solid fa-gavel"></i> How we enforce these rules</h2>
+              <div class="info-steps">
+                <div class="info-step"><span class="info-step-num">1</span><div><strong>Warning</strong><p>First confirmed issue: we message the dealer on WhatsApp and give 48 hours to correct the listing.</p></div></div>
+                <div class="info-step"><span class="info-step-num">2</span><div><strong>Takedown</strong><p>Listings that stay misleading, or any counterfeit or scam listing, are removed by our moderators.</p></div></div>
+                <div class="info-step"><span class="info-step-num">3</span><div><strong>Suspension</strong><p>Repeat offences or fraud lead to loss of Verified status and suspension of the shop account.</p></div></div>
+              </div>
+            </section>
+
+            <section class="info-section">
+              <h2><i class="fa-solid fa-headset"></i> Need help?</h2>
+              <p class="info-text">Our support team is in Accra and is available by phone or email during market hours (Monday to Saturday, 8am to 6pm).</p>
+              <div class="info-contact-row">
+                <a class="btn btn-primary info-contact-btn" href="tel:+233502335689"><i class="fa-solid fa-phone"></i> Call +233 50 233 5689</a>
+                <a class="btn btn-secondary info-contact-btn" href="mailto:korantenghenry2017@gmail.com"><i class="fa-solid fa-envelope"></i> korantenghenry2017@gmail.com</a>
+              </div>
+              <p class="info-updated">Last updated: November 2026</p>
+            </section>
+          </article>
+
+          <!-- PAGE: Report Scam Listings -->
+          <article class="info-page" id="info-page-report-scam" style="display: none;">
+            <header class="info-page-header">
+              <div class="section-icon-badge red-badge"><i class="fa-solid fa-flag"></i></div>
+              <div>
+                <h1>Report Scam Listings</h1>
+                <p>Seen a fake part, a dishonest dealer or a listing that isn't what it claims? Tell us and our moderators will investigate.</p>
+              </div>
+            </header>
+
+            <div class="info-callout info-callout-warning">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <p><strong>Lost money to a scam?</strong> Report it here <em>and</em> contact your mobile money provider immediately to request a reversal. For theft or fraud, also report to the nearest Ghana Police Service station.</p>
+            </div>
+
+            <form id="scam-report-form" class="info-form" onsubmit="app.submitScamReport(event)">
+              <input type="hidden" id="scam-product-id">
+
+              <div class="info-form-grid">
+                <div class="form-group">
+                  <label for="scam-listing-ref">Listing name or link <span class="req">*</span></label>
+                  <input type="text" id="scam-listing-ref" maxlength="500" placeholder="e.g. Toyota Corolla brake pads, or paste the listing link">
+                </div>
+                <div class="form-group">
+                  <label for="scam-shop-name">Shop or dealer name</label>
+                  <input type="text" id="scam-shop-name" maxlength="255" placeholder="e.g. Kofi Auto Spares">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="scam-reason">What went wrong? <span class="req">*</span></label>
+                <select id="scam-reason" required>
+                  <option value="">Choose a reason</option>
+                  <option>Counterfeit or fake part sold as genuine</option>
+                  <option>Asked for payment upfront, then disappeared</option>
+                  <option>Part delivered was different from the listing</option>
+                  <option>Wrong vehicle fitment or misleading description</option>
+                  <option>Stolen photos or impersonating another shop</option>
+                  <option>Suspected stolen parts</option>
+                  <option>Price was not what was listed</option>
+                  <option>Rude, threatening or abusive behaviour</option>
+                  <option>Other</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="scam-details">What happened? <span class="req">*</span></label>
+                <textarea id="scam-details" rows="5" maxlength="2000" required placeholder="Describe what happened: dates, amounts, the number you paid to, what the dealer said..."></textarea>
+                <span class="info-field-hint">The more detail you give, the faster we can act. Do not include your PIN or passwords.</span>
+              </div>
+
+              <div class="info-form-grid">
+                <div class="form-group">
+                  <label for="scam-reporter-name">Your name</label>
+                  <input type="text" id="scam-reporter-name" maxlength="255" placeholder="Optional" autocomplete="name">
+                </div>
+                <div class="form-group">
+                  <label for="scam-reporter-phone">Your phone number</label>
+                  <input type="tel" id="scam-reporter-phone" maxlength="20" placeholder="Optional, so we can follow up" autocomplete="tel">
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary info-submit-btn" id="scam-report-submit"><i class="fa-solid fa-paper-plane"></i> Send Report</button>
+              <p class="info-field-hint">Reports are confidential. The dealer is never told who reported them.</p>
+            </form>
+
+            <div class="info-success" id="scam-report-success" style="display: none;">
+              <i class="fa-solid fa-circle-check"></i>
+              <h2>Report received</h2>
+              <p>Thank you. Our moderators review every report and will take the listing down or warn the dealer where needed. If you left a phone number, we may contact you for more details.</p>
+              <div class="info-contact-row">
+                <button type="button" class="btn btn-secondary" onclick="app.resetScamReportForm()"><i class="fa-solid fa-flag"></i> Report another listing</button>
+                <button type="button" class="btn btn-primary" onclick="app.showStorefront()"><i class="fa-solid fa-arrow-left"></i> Back to Marketplace</button>
+              </div>
+            </div>
+          </article>
+
+          <!-- PAGE: Register Seller Stall -->
+          <article class="info-page" id="info-page-register-stall" style="display: none;">
+            <header class="info-page-header">
+              <div class="section-icon-badge blue-badge"><i class="fa-solid fa-store"></i></div>
+              <div>
+                <h1>Register Your Seller Stall</h1>
+                <p>Own a parts or accessories stall in Abossey Okai? Get listed and start receiving WhatsApp leads from buyers across Ghana.</p>
+              </div>
+            </header>
+
+            <div class="info-steps info-steps-row">
+              <div class="info-step"><span class="info-step-num">1</span><div><strong>Send your details</strong><p>Fill the short form below. It takes two minutes.</p></div></div>
+              <div class="info-step"><span class="info-step-num">2</span><div><strong>We visit and verify</strong><p>Our team calls you and confirms your stall in the market.</p></div></div>
+              <div class="info-step"><span class="info-step-num">3</span><div><strong>Start listing</strong><p>You receive a login and a temporary PIN for your Merchant Portal.</p></div></div>
+            </div>
+
+            <form id="stall-application-form" class="info-form" onsubmit="app.submitStallApplication(event)">
+              <div class="info-form-grid">
+                <div class="form-group">
+                  <label for="stall-shop-name">Shop name <span class="req">*</span></label>
+                  <input type="text" id="stall-shop-name" maxlength="255" required placeholder="e.g. Kofi Auto Spares" autocomplete="organization">
+                </div>
+                <div class="form-group">
+                  <label for="stall-owner-name">Owner or manager name <span class="req">*</span></label>
+                  <input type="text" id="stall-owner-name" maxlength="255" required placeholder="e.g. Kofi Mensah" autocomplete="name">
+                </div>
+              </div>
+
+              <div class="info-form-grid">
+                <div class="form-group">
+                  <label for="stall-phone">WhatsApp number <span class="req">*</span></label>
+                  <input type="tel" id="stall-phone" maxlength="20" required placeholder="e.g. 024 123 4567" autocomplete="tel">
+                </div>
+                <div class="form-group">
+                  <label for="stall-email">Email <span class="info-optional">(for your portal login)</span></label>
+                  <input type="email" id="stall-email" maxlength="255" placeholder="e.g. kofi@gmail.com" autocomplete="email">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="stall-location">Stall location in Abossey Okai <span class="req">*</span></label>
+                <input type="text" id="stall-location" maxlength="500" required placeholder="e.g. Stall A12, Section 3, near the main gate">
+              </div>
+
+              <div class="form-group">
+                <label for="stall-specialty">What do you sell? <span class="req">*</span></label>
+                <select id="stall-specialty" required>
+                  <option value="general">Spare parts and accessories</option>
+                  <option value="parts">Spare parts only</option>
+                  <option value="accessories">Car accessories only</option>
+                  <option value="japanese">Japanese and Asian vehicle parts</option>
+                  <option value="european">European vehicle parts</option>
+                  <option value="american">American vehicle parts</option>
+                  <option value="commercial">Trucks and commercial vehicle parts</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="stall-message">Anything else we should know?</label>
+                <textarea id="stall-message" rows="3" maxlength="2000" placeholder="Optional: brands you specialise in, opening hours, how long you have traded in the market..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary info-submit-btn" id="stall-application-submit"><i class="fa-solid fa-paper-plane"></i> Send Registration Request</button>
+              <p class="info-field-hint">Listing on ABBOSSEY OKAI MAGAZINE is free. By sending this request you agree to the <a href="#guidelines" onclick="app.openInfoPage('guidelines'); return false;">Trading Guidelines</a>. Already registered? <a href="#" onclick="app.openMerchantPortal(); return false;">Log in to your Merchant Portal</a>.</p>
+            </form>
+
+            <div class="info-success" id="stall-application-success" style="display: none;">
+              <i class="fa-solid fa-circle-check"></i>
+              <h2>Request received</h2>
+              <p>Thank you! Our team will call you within two working days to verify your stall. Once verified you will receive your Merchant Portal login and temporary PIN.</p>
+              <div class="info-contact-row">
+                <a class="btn btn-secondary info-contact-btn" href="tel:+233502335689"><i class="fa-solid fa-phone"></i> Call our team</a>
+                <button type="button" class="btn btn-primary" onclick="app.showStorefront()"><i class="fa-solid fa-arrow-left"></i> Back to Marketplace</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="dashboard-view" id="merchant-dashboard-panel">
         
         <!-- Dashboard Sidebar -->
@@ -1331,7 +1568,29 @@
 
           <!-- TAB 2: Onboard & Manage Merchants -->
           <div class="dashboard-tab-panel" id="admin-panel-merchants" style="display: none;">
-            
+
+            <!-- Stall registration requests from the public "Register Seller Stall" page -->
+            <div class="inventory-card" id="admin-applications-card" style="margin-bottom: 2rem;">
+              <div class="dashboard-panel-header" style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="font-size: 1rem; margin: 0;"><i class="fa-solid fa-inbox"></i> Stall Registration Requests <span class="admin-count-pill" id="admin-applications-count">0</span></h3>
+                <label class="admin-inline-toggle"><input type="checkbox" id="admin-applications-show-all" onchange="app.renderAdminApplications()"> Show handled requests</label>
+              </div>
+              <div class="table-wrapper">
+                <table class="inventory-table">
+                  <thead>
+                    <tr>
+                      <th>Shop &amp; Owner</th>
+                      <th>Contact &amp; Stall</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-applications-table-body">
+                    <!-- Loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             <!-- Onboard Form Container (EXACT 1-TO-1 REFLECTION OF MERCHANT SHOP PROFILE TAB) -->
             <div class="merchant-settings-container" style="margin-bottom: 2rem;">
               
@@ -1628,7 +1887,7 @@
           <div class="dashboard-tab-panel" id="admin-panel-reports" style="display: none;">
             <div class="inventory-card">
               <div class="dashboard-panel-header" style="padding: 1rem;">
-                <h3 style="font-size: 1rem; margin: 0;">Buyer Reported Listings</h3>
+                <h3 style="font-size: 1rem; margin: 0;">Buyer Reported Listings &amp; Scam Reports</h3>
               </div>
               <div class="table-wrapper">
                 <table class="inventory-table">
@@ -1690,18 +1949,18 @@
             <ul class="footer-links">
               <li><a href="#" onclick="app.filterByMainType('parts'); return false;">Spare Parts</a></li>
               <li><a href="#" onclick="app.filterByMainType('accessories'); return false;">Accessories</a></li>
-              <li><a href="#why-us-section">Merchant Trust</a></li>
-              <li><a href="#faq-section">User FAQ</a></li>
+              <li><a href="#why-us-section" onclick="app.scrollToStorefrontSection('why-us-section'); return false;">Merchant Trust</a></li>
+              <li><a href="#faq-section" onclick="app.scrollToStorefrontSection('faq-section'); return false;">User FAQ</a></li>
             </ul>
           </div>
         
           <div class="footer-col" id="footer-col-legal">
             <h4 class="footer-title">Seller Hub</h4>
             <ul class="footer-links">
-              <li><a href="#" onclick="app.openMerchantAuth(true); return false;">Register Seller Stall</a></li>
+              <li><a href="#register-stall" onclick="app.openInfoPage('register-stall'); return false;">Register Seller Stall</a></li>
               <li><a href="#" onclick="app.openMerchantPortal(); return false;">Merchant Portal Login</a></li>
-              <li><a href="#">Trading Guidelines</a></li>
-              <li><a href="#">Report Scam Listings</a></li>
+              <li><a href="#guidelines" onclick="app.openInfoPage('guidelines'); return false;">Trading Guidelines</a></li>
+              <li><a href="#report-scam" onclick="app.openInfoPage('report-scam'); return false;">Report Scam Listings</a></li>
             </ul>
           </div>
         </div>
@@ -1709,9 +1968,9 @@
         <div class="footer-col" id="footer-col-contact">
           <h4 class="footer-title">Contact</h4>
           <ul class="footer-links">
-            <li><span><i class="fa-solid fa-envelope"></i> support@abbosseyokaimag.com</span></li>
-            <li><span><i class="fa-solid fa-phone"></i> +233 24 000 0000</span></li>
-            <li><span><i class="fa-solid fa-location-dot"></i> Abossey Okai Auto Market, Accra, Ghana</span></li>
+            <li><a href="mailto:korantenghenry2017@gmail.com"><i class="fa-solid fa-envelope"></i> korantenghenry2017@gmail.com</a></li>
+            <li><a href="tel:+233502335689"><i class="fa-solid fa-phone"></i> +233 50 233 5689</a></li>
+            <li><a href="https://www.google.com/maps/search/?api=1&query=Abossey+Okai+Spare+Parts+Market+Accra" target="_blank" rel="noopener"><i class="fa-solid fa-location-dot"></i> Abossey Okai Auto Market, Accra, Ghana</a></li>
           </ul>
         </div>
       </div>

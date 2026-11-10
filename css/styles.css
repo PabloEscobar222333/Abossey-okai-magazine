@@ -6930,3 +6930,293 @@ footer {
   accent-color: var(--primary-color);
   cursor: pointer;
 }
+
+/* ============================================
+   INFO PAGES — Trading Guidelines, Report Scam, Register Stall
+   ============================================ */
+.info-page-box {
+  max-width: 860px;
+}
+
+.info-page {
+  background: var(--white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 12px);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.info-page-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.info-page-header h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.35rem;
+  color: var(--primary-color);
+}
+
+.info-page-header p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.section-icon-badge.red-badge {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.info-callout {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  background: rgba(15, 76, 129, 0.06);
+  border: 1px solid rgba(15, 76, 129, 0.15);
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.info-callout > i {
+  color: var(--primary-color);
+  margin-top: 0.2rem;
+}
+
+.info-callout p { margin: 0; }
+
+.info-callout-warning {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+
+.info-callout-warning > i { color: #D97706; }
+
+.info-section {
+  margin-bottom: 1.75rem;
+}
+
+.info-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+  color: var(--charcoal, #1E293B);
+}
+
+.info-section h2 i { color: var(--primary-color); }
+
+.info-list {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.info-list li::marker {
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.info-list-plain li::marker { color: #DC2626; }
+
+.info-list a { color: var(--primary-color); font-weight: 600; }
+
+.info-text {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-main);
+}
+
+.info-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.info-steps-row {
+  flex-direction: row;
+  margin-bottom: 1.5rem;
+}
+
+.info-steps-row .info-step { flex: 1; }
+
+.info-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: #F8FAFC;
+}
+
+.info-step strong { display: block; font-size: 0.9rem; margin-bottom: 0.15rem; }
+.info-step p { margin: 0; font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+
+.info-step-num {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.info-contact-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.info-updated {
+  margin-top: 1rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Forms on the info pages */
+.info-form .form-group { margin-bottom: 1rem; }
+
+.info-form label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.info-form .req { color: #DC2626; }
+.info-optional { font-weight: 400; color: var(--text-muted); font-size: 0.78rem; }
+
+.info-form input,
+.info-form select,
+.info-form textarea {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--white);
+}
+
+.info-form textarea { resize: vertical; }
+
+.info-form input:focus,
+.info-form select:focus,
+.info-form textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.12);
+}
+
+.info-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1rem;
+}
+
+.info-field-hint {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.info-field-hint a { color: var(--primary-color); font-weight: 600; }
+
+.info-submit-btn {
+  width: 100%;
+  margin-top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.info-success {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.info-success > i {
+  font-size: 3rem;
+  color: var(--whatsapp-color, #25D366);
+  margin-bottom: 0.75rem;
+}
+
+.info-success h2 { margin: 0 0 0.5rem; font-size: 1.3rem; }
+.info-success p { color: var(--text-muted); line-height: 1.55; max-width: 520px; margin: 0 auto; }
+.info-success .info-contact-row { justify-content: center; margin-top: 1.25rem; }
+
+/* Footer contact links */
+.footer-links a i { width: 1rem; text-align: center; }
+
+/* Admin: stall registration requests */
+.admin-count-pill {
+  display: inline-block;
+  min-width: 1.4rem;
+  padding: 0.1rem 0.45rem;
+  margin-left: 0.35rem;
+  border-radius: 999px;
+  background: var(--accent-color);
+  color: var(--white);
+  font-size: 0.72rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.admin-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.admin-status-pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-status-pill.pending { background: #FEF3C7; color: #B45309; }
+.admin-status-pill.contacted { background: #DBEAFE; color: #1D4ED8; }
+.admin-status-pill.onboarded { background: #DCFCE7; color: #15803D; }
+.admin-status-pill.declined { background: #F1F5F9; color: #64748B; }
+
+@media (max-width: 640px) {
+  .info-page { padding: 1.25rem 1rem; }
+  .info-page-header { flex-direction: column; gap: 0.6rem; }
+  .info-page-header h1 { font-size: 1.35rem; }
+  .info-steps-row { flex-direction: column; }
+  .info-form-grid { grid-template-columns: 1fr; }
+}

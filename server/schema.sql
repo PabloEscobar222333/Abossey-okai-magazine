@@ -118,6 +118,26 @@ CREATE TABLE IF NOT EXISTS reported_listings (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 9b. Extra columns for reports that aren't tied to a product (public "Report Scam Listings" page)
+ALTER TABLE reported_listings ADD COLUMN IF NOT EXISTS listing_ref TEXT;
+ALTER TABLE reported_listings ADD COLUMN IF NOT EXISTS shop_name VARCHAR(255);
+ALTER TABLE reported_listings ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(255);
+
+-- 9c. Stall registration requests (public "Register Seller Stall" page; admins onboard from these)
+CREATE TABLE IF NOT EXISTS merchant_applications (
+  id          SERIAL PRIMARY KEY,
+  shop_name   VARCHAR(255) NOT NULL,
+  owner_name  VARCHAR(255),
+  phone       VARCHAR(20),
+  email       VARCHAR(255),
+  location    TEXT,
+  specialty   VARCHAR(50),
+  message     TEXT,
+  status      VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'contacted', 'onboarded', 'declined')),
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 10. Lead tracking
 CREATE TABLE IF NOT EXISTS lead_tracking (
   id         SERIAL PRIMARY KEY,
@@ -144,6 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_merchants_user_id ON merchants(user_id);
 CREATE INDEX IF NOT EXISTS idx_merchants_lat_lng ON merchants(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_id ON audit_logs(admin_id);
 CREATE INDEX IF NOT EXISTS idx_reported_product_id ON reported_listings(product_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_applications_status ON merchant_applications(status);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);

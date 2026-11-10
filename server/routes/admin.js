@@ -3,6 +3,7 @@ import sql from "../db.js";
 import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { generateTempPin } from "../utils.js";
+import { ensurePublicSchema } from "./public.js";
 
 const router = Router();
 
@@ -71,6 +72,12 @@ router.get("/analytics", async (req, res) => {
     const [verifiedCount] = await sql`SELECT COUNT(*) as count FROM merchants WHERE verified = true`;
     const [reportCount] = await sql`SELECT COUNT(*) as count FROM reported_listings WHERE status = 'open'`;
     const [userCount] = await sql`SELECT COUNT(*) as count FROM users`;
+    let pendingApplications = 0;
+    try {
+      await ensurePublicSchema();
+      const [appCount] = await sql`SELECT COUNT(*) as count FROM merchant_applications WHERE status = 'pending'`;
+      pendingApplications = parseInt(appCount.count);
+    } catch (e) { /* table not reachable yet: show 0 */ }
 
     // Lead stats
     const [waLeads] = await sql`SELECT COUNT(*) as count FROM lead_tracking WHERE type = 'whatsapp'`;
@@ -88,6 +95,7 @@ router.get("/analytics", async (req, res) => {
         hiddenProducts: parseInt(hiddenCount.count),
         verifiedMerchants: parseInt(verifiedCount.count),
         openReports: parseInt(reportCount.count),
+        pendingApplications,
         totalUsers: parseInt(userCount.count),
         whatsappLeads: parseInt(waLeads.count),
         mapsLeads: parseInt(mapLeads.count),
@@ -131,6 +139,7 @@ router.delete("/audit-logs", async (req, res) => {
 // ─── GET /api/admin/reports ─────────────────────────────
 router.get("/reports", async (req, res) => {
   try {
+    await ensurePublicSchema();
     const reports = await sql`
       SELECT rl.*, p.name as product_name, p.brand as product_brand,
         m.shop_name as merchant_shop_name, m.phone as merchant_phone
@@ -313,6 +322,49 @@ router.post("/audit-logs", async (req, res) => {
   } catch (err) {
     console.error("Insert audit log error:", err);
     res.status(500).json({ error: "Failed to insert audit log" });
+  }
+});
+
+// ─── GET /api/admin/applications ────────────────────────
+// Stall registration requests sent from the public "Register Seller Stall" page
+router.get("/applications", async (req, res) => {
+  try {
+    await ensurePublicSchema();
+    const applications = await sql`
+      SELECT * FROM merchant_applications
+      ORDER BY (status = 'pending') DESC, created_at DESC
+      LIMIT 200
+    `;
+    res.json({ applications });
+  } catch (err) {
+    console.error("Get applications error:", err);
+    res.status(500).json({ error: "Failed to fetch registration requests" });
+  }
+});
+
+// ─── PATCH /api/admin/applications/:id ──────────────────
+router.patch("/applications/:id", async (req, res) => {
+  try {
+    await ensurePublicSchema();
+    const status = String(req.body.status || "");
+    if (!["pending", "contacted", "onboarded", "declined"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+    const [updated] = await sql`
+      UPDATE merchant_applications SET status = ${status}, updated_at = NOW()
+      WHERE id = ${req.params.id}
+      RETURNING *
+    `;
+    if (!updated) return res.status(404).json({ error: "Request not found" });
+
+    await sql`
+      INSERT INTO audit_logs (admin_id, action, target, details)
+      VALUES (${req.user.id}, 'APPLICATION_STATUS_CHANGE', ${`Stall request #${req.params.id} (${updated.shop_name})`}, ${`Status changed to ${status}`})
+    `;
+    res.json({ application: updated });
+  } catch (err) {
+    console.error("Update application error:", err);
+    res.status(500).json({ error: "Failed to update registration request" });
   }
 });
 
