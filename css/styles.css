@@ -6938,7 +6938,30 @@ footer {
   max-width: 860px;
 }
 
-.info-page {
+/* Title block sits on the page background; the content lives in a white card below it */
+.info-page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.info-page-header .section-icon-badge {
+  width: 48px;
+  height: 48px;
+  font-size: 1.25rem;
+  border-radius: 12px;
+}
+
+.info-page-header h1 {
+  font-size: 1.9rem;
+  line-height: 1.2;
+  margin: 0 0 0.4rem;
+  color: var(--primary-color);
+}
+
+.info-page-card {
   background: var(--white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg, 12px);
@@ -6946,22 +6969,10 @@ footer {
   box-shadow: var(--shadow-sm);
 }
 
-.info-page-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.info-page-header h1 {
-  font-size: 1.6rem;
-  margin: 0 0 0.35rem;
-  color: var(--primary-color);
-}
-
 .info-page-header p {
   margin: 0;
   color: var(--text-muted);
+  font-size: 1.05rem;
   line-height: 1.5;
 }
 
@@ -7214,9 +7225,8 @@ footer {
 .admin-status-pill.declined { background: #F1F5F9; color: #64748B; }
 
 @media (max-width: 640px) {
-  .info-page { padding: 1.25rem 1rem; }
-  .info-page-header { flex-direction: column; gap: 0.6rem; }
-  .info-page-header h1 { font-size: 1.35rem; }
+  .info-page-card { padding: 1.25rem 1rem; }
+  .info-page-header h1 { font-size: 1.6rem; }
   .info-steps-row { flex-direction: column; }
   .info-form-grid { grid-template-columns: 1fr; }
 }
