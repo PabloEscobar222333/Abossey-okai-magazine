@@ -25,7 +25,8 @@ if (!process.env.JWT_SECRET) {
 // Generate a JWT token for a user.
 // A pinChangeRequired token (issued after logging in with a temporary PIN) is only
 // accepted by routes that use requirePinChangeAuth, so it can do nothing but set a new PIN.
-export function generateToken(user, { pinChangeRequired = false } = {}) {
+// rememberDevice ("Keep me logged in on this device") stretches the session from 7 to 30 days.
+export function generateToken(user, { pinChangeRequired = false, rememberDevice = false } = {}) {
   const payload = {
     id: user.id,
     email: user.email,
@@ -33,7 +34,14 @@ export function generateToken(user, { pinChangeRequired = false } = {}) {
     full_name: user.full_name,
   };
   if (pinChangeRequired) payload.pin_change_required = true;
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: pinChangeRequired ? "1h" : "7d" });
+  const expiresIn = pinChangeRequired ? "1h" : (rememberDevice ? "30d" : "7d");
+  return jwt.sign(payload, getJwtSecret(), { expiresIn });
+}
+
+// Reads the optional "remember this device" flag sent with a login request
+export function wantsRememberDevice(body) {
+  const v = body && body.remember_device;
+  return v === true || v === "true" || v === 1 || v === "1";
 }
 
 function authenticate(req, res, next, allowPinChange) {

@@ -2012,7 +2012,10 @@
           
           <!-- VIEW 1: Initial Login Options -->
           <div id="auth-view-initial">
-            
+
+            <!-- Account remembered on this device (filled in by renderRememberedAccount) -->
+            <div id="auth-remembered" class="auth-remembered" style="display: none;"></div>
+
             <!-- Option 1: Log in with Google -->
             <button type="button" class="btn btn-google-sso" onclick="app.handleGoogleSSOClick()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0.75rem 1rem; border: 1px solid #dadce0; border-radius: 8px; background-color: #ffffff; color: #3c4043; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 1rem;">
               <svg width="18" height="18" viewBox="0 0 18 18">
@@ -2061,6 +2064,10 @@
                   </button>
                 </div>
               </div>
+              <label class="auth-remember-row">
+                <input type="checkbox" id="auth-remember-device" checked onchange="app.setRememberDevice(this.checked)">
+                <span>Keep me logged in on this device</span>
+              </label>
               <button type="submit" class="btn btn-primary auth-submit-btn" id="auth-pin-submit">Continue</button>
               <p class="auth-help-text" id="auth-pin-help">New merchant? Use the temporary PIN from the admin. You'll choose your own PIN right after logging in.</p>
             </form>
