@@ -2698,6 +2698,113 @@ class AbbosseyOkaiApp {
     this.showAuthView("initial");
   }
 
+  // ─── Remember this device ────────────────────────────────
+  // After a successful login the account (not the PIN) is kept on the device so the next
+  // login is one tap: Google users are sent straight to Google, merchants and admins only
+  // type their PIN, customers are signed in directly. "Keep me logged in" also asks the
+  // server for a 30-day session instead of 7 days.
+  get rememberDevice() {
+    return localStorage.getItem("ao_remember_device") !== "false";
+  }
+
+  setRememberDevice(on) {
+    localStorage.setItem("ao_remember_device", on ? "true" : "false");
+    const box = document.getElementById("auth-remember-device");
+    if (box) box.checked = !!on;
+  }
+
+  getRememberedAccount() {
+    try {
+      const acc = JSON.parse(localStorage.getItem("ao_remembered_account"));
+      return acc && acc.method && acc.identifier ? acc : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  saveRememberedAccount(data) {
+    const method = this.pendingLoginMethod || "email";
+    const identifier = method === "google"
+      ? (data.user.email || "")
+      : (this.pendingLoginIdentifier || data.user.email || data.user.phone || "");
+    if (!identifier) return;
+    const shopName = data.merchantProfile && (data.merchantProfile.shop_name || data.merchantProfile.shopName);
+    const merchantAvatar = data.merchantProfile ? resolveApiUrl(data.merchantProfile.avatar_url || null) : null;
+    localStorage.setItem("ao_remembered_account", JSON.stringify({
+      method,
+      identifier,
+      name: data.user.full_name || shopName || "",
+      role: data.user.role || "customer",
+      avatar: data.user.avatar_url || merchantAvatar || null,
+      savedAt: Date.now(),
+    }));
+  }
+
+  forgetRememberedAccount() {
+    localStorage.removeItem("ao_remembered_account");
+    this.renderRememberedAccount();
+    this.showToast("This device will no longer remember that account.", "info");
+  }
+
+  renderRememberedAccount() {
+    const box = document.getElementById("auth-remembered");
+    if (!box) return;
+    const acc = this.getRememberedAccount();
+    if (!acc) {
+      box.style.display = "none";
+      box.innerHTML = "";
+      return;
+    }
+    const title = acc.name || acc.identifier;
+    const subtitle = acc.name ? acc.identifier : (acc.method === "google" ? "Google account" : "");
+    const roleLabel = acc.role === "admin" ? "Admin" : (acc.role === "merchant" ? "Merchant" : "Customer");
+    const initial = (title || "?").trim().charAt(0).toUpperCase();
+    const avatar = acc.avatar
+      ? `<img src="${escapeHtml(acc.avatar)}" alt="" onerror="this.parentNode.textContent=${jsArg(initial)}">`
+      : escapeHtml(initial);
+    const hint = acc.method === "google"
+      ? "Continue with Google"
+      : (acc.role === "customer" ? "Tap to sign in" : "Tap, then enter your PIN");
+    box.innerHTML = `
+      <button type="button" class="auth-remembered-card" onclick="app.continueAsRemembered()" aria-label="Continue as ${escapeHtml(title)}">
+        <span class="auth-remembered-avatar">${avatar}</span>
+        <span class="auth-remembered-text">
+          <span class="auth-remembered-label">Welcome back &middot; ${roleLabel}</span>
+          <span class="auth-remembered-name">${escapeHtml(title)}</span>
+          <span class="auth-remembered-id">${escapeHtml(subtitle || hint)}</span>
+        </span>
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+      <button type="button" class="auth-remembered-forget" onclick="app.forgetRememberedAccount()">Not you? Use a different account</button>
+    `;
+    box.style.display = "";
+  }
+
+  // One tap from the remembered-account card
+  async continueAsRemembered() {
+    const acc = this.getRememberedAccount();
+    if (!acc) return;
+
+    if (acc.method === "google") {
+      await this.handleGoogleSSOClick(acc.identifier);
+      return;
+    }
+
+    this.showAuthView(acc.method);
+    const idInput = document.getElementById(acc.method === "phone" ? "auth-phone-input" : "auth-email-input");
+    if (idInput) idInput.value = acc.identifier;
+
+    if (acc.role === "merchant" || acc.role === "admin") {
+      // Skip the "who are you?" step: go straight to the PIN
+      if (idInput) idInput.readOnly = true;
+      this.setAuthPinStep(true);
+      document.getElementById("auth-pin-input")?.focus();
+    } else {
+      // Customers have no PIN: sign them straight in
+      document.getElementById("auth-pin-form")?.requestSubmit();
+    }
+  }
+
   closeMerchantAuth() {
     document.getElementById("auth-modal").style.display = "none";
 
@@ -2726,6 +2833,10 @@ class AbbosseyOkaiApp {
     const closeBtn = document.getElementById("auth-close-btn");
     if (closeBtn) closeBtn.style.display = active === "set-pin" ? "none" : "";
 
+    if (active === "initial") this.renderRememberedAccount();
+    const rememberBox = document.getElementById("auth-remember-device");
+    if (rememberBox) rememberBox.checked = this.rememberDevice;
+
     if (isPinLogin) {
       this.authLoginMethod = viewName;
       [["email", "auth-email-group", "auth-email-input"], ["phone", "auth-phone-group", "auth-phone-input"]].forEach(([method, groupId, inputId]) => {
@@ -2747,6 +2858,7 @@ class AbbosseyOkaiApp {
   async applyLoginResult(data) {
     localStorage.setItem("ao_jwt_token", data.token);
     localStorage.setItem("ao_user_email", data.user.email || data.user.phone || "");
+    if (this.rememberDevice) this.saveRememberedAccount(data);
 
     // Logged in with a temporary PIN: the token only allows choosing a new PIN
     if (data.user.must_change_pin) {
@@ -2791,10 +2903,12 @@ class AbbosseyOkaiApp {
     this.updatePortalButtonState();
   }
 
-  async handleGoogleSSOClick() {
-    // Trigger Firebase Google Sign-In popup
+  async handleGoogleSSOClick(loginHint) {
+    // Trigger Firebase Google Sign-In popup; a remembered email preselects that Google account
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    provider.setCustomParameters(typeof loginHint === "string" && loginHint ? { login_hint: loginHint } : { prompt: 'select_account' });
+    this.pendingLoginMethod = "google";
+    this.pendingLoginIdentifier = typeof loginHint === "string" ? loginHint : "";
     this.showToast("Opening Google Sign-In...", "info");
 
     try {
@@ -2817,7 +2931,7 @@ class AbbosseyOkaiApp {
 
       this.showToast("Verifying Google account...", "info");
 
-      const res = await apiRequest("/api/auth/google", { method: "POST", body: { credential: idToken } });
+      const res = await apiRequest("/api/auth/google", { method: "POST", body: { credential: idToken, remember_device: this.rememberDevice } });
       if (!res.ok || !res.data.token) {
         this.showToast(res.error || "Google authentication failed", "error");
         return;
@@ -2872,6 +2986,9 @@ class AbbosseyOkaiApp {
       }
       credentials.pin = pin;
     }
+    credentials.remember_device = this.rememberDevice;
+    this.pendingLoginMethod = this.authLoginMethod;
+    this.pendingLoginIdentifier = credentials.email || credentials.phone;
 
     const submitBtn = form.querySelector("button[type=submit]");
     const originalText = submitBtn ? submitBtn.textContent : "";
@@ -2926,7 +3043,7 @@ class AbbosseyOkaiApp {
     const originalText = submitBtn ? submitBtn.textContent : "";
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving..."; }
 
-    const res = await apiRequest("/api/auth/change-pin", { method: "POST", body: { new_pin: newPin } });
+    const res = await apiRequest("/api/auth/change-pin", { method: "POST", body: { new_pin: newPin, remember_device: this.rememberDevice } });
 
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
 

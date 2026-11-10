@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import sql from "../db.js";
-import { generateToken, requireAuth, requirePinChangeAuth, requireAdmin } from "../middleware/auth.js";
+import { generateToken, wantsRememberDevice, requireAuth, requirePinChangeAuth, requireAdmin } from "../middleware/auth.js";
 import { normalizePhone, isValidPin, isWeakPin, generateTempPin } from "../utils.js";
 import dotenv from "dotenv";
 
@@ -73,7 +73,7 @@ router.post("/identify", async (req, res) => {
     res.json({
       user: publicUser(user),
       merchantProfile: null,
-      token: generateToken(user),
+      token: generateToken(user, { rememberDevice: wantsRememberDevice(req.body) }),
     });
   } catch (err) {
     console.error("Identify error:", err);
@@ -147,7 +147,7 @@ router.post("/login", async (req, res) => {
     }
 
     // A temporary PIN only unlocks the "set a new PIN" step
-    const token = generateToken(user, { pinChangeRequired: !!user.must_change_pin });
+    const token = generateToken(user, { pinChangeRequired: !!user.must_change_pin, rememberDevice: wantsRememberDevice(req.body) });
 
     res.json({
       user: publicUser(user),
@@ -232,7 +232,7 @@ router.post("/change-pin", requirePinChangeAuth, async (req, res) => {
       message: "PIN updated",
       user: publicUser(updated),
       merchantProfile: await findMerchantProfile(updated),
-      token: generateToken(updated),
+      token: generateToken(updated, { rememberDevice: wantsRememberDevice(req.body) }),
     });
   } catch (err) {
     console.error("Change PIN error:", err);
@@ -392,7 +392,7 @@ router.post("/google", async (req, res) => {
     }
 
     // 4. Issue JWT
-    const token = generateToken(user);
+    const token = generateToken(user, { rememberDevice: wantsRememberDevice(req.body) });
 
     res.json({
       user: {
